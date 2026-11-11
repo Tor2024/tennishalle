@@ -280,6 +280,10 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
   font-weight: 400;
   line-height: 1;
 }
+.hero-wordmark-full {
+  font-size: 12.4vw;
+  white-space: nowrap;
+}
 .hero-serif {
   font-family: 'Cormorant Garamond', serif;
 }

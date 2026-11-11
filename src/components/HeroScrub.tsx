@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 const CONFIG = {
   videoSrc: '/assets/video/hero-720.mp4',
   posterSrc: '/assets/img/hero-first-hq.webp',
-  posterForegroundSrc: '/assets/img/c027dbb9-1c36-4784-92bd-bfa2337b1fe9.png',
+  posterForegroundSrc: '/assets/img/c027dbb9-ea25-4d38-8980-0c5c33e58092.png',
   endFrameSrc: '/assets/img/hero-lastframe.webp',
   fps: 24,
   scrollLengthVh: 520,
@@ -123,11 +123,7 @@ export function HeroScrub({ summary }: { summary: string }) {
 
         {/* wordmark */}
         <p aria-hidden="true" className="hero-wordmark-row">
-          <span className="hero-wordmark">TENNIS</span>
-          <span className="inline-block w-[10vw] md:w-[9vw]" />
-          <span className="hero-wordmark" style={{ marginRight: '-0.14em' }}>
-            HALLE
-          </span>
+          <span className="hero-wordmark hero-wordmark-full">TENNISHALLE</span>
         </p>
 
         {/* scroll hint arrow */}

@@ -14,7 +14,7 @@ export function Footer() {
             <Link to="/book" className="ro-body hover:text-foreground-950 transition-colors w-fit">
               Platz buchen
             </Link>
-            <Link to="/courts" className="ro-body hover:text-foreground-950 transition-colors w-fit">
+            <Link to="/" className="ro-body hover:text-foreground-950 transition-colors w-fit">
               Plätze
             </Link>
             <Link to="/account" className="ro-body hover:text-foreground-950 transition-colors w-fit">

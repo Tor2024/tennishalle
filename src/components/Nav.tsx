@@ -29,7 +29,7 @@ export function Nav() {
     navigate('/')
   }
 
-  const links = [{ to: '/courts', label: 'Plätze' }]
+  const links = [{ to: '/', label: 'Plätze' }]
 
 function NavLink({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {
   return (
