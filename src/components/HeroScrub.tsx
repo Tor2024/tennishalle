@@ -11,9 +11,9 @@ const CONFIG = {
 }
 
 const CAPTIONS = [
-  { kicker: '01', line: 'Der Schlag', align: 'left' },
-  { kicker: '02', line: 'Der Ballwechsel', align: 'right' },
-  { kicker: '03', line: 'Der Blick', align: 'left' },
+  { a: 0.1, b: 0.22, kicker: '01 — Der Schlag', line: 'Jeder gute Abend beginnt mit einem sauberen Schlag.', align: 'left' },
+  { a: 0.3, b: 0.5, kicker: '02 — Der Ballwechsel', line: 'Plätze für lange Ballwechsel und späte Endsiege.', align: 'right' },
+  { a: 0.62, b: 0.8, kicker: '03 — Der Blick', line: 'Live-Verfügbarkeit in 30-Minuten-Schritten.', align: 'left' },
 ] as const
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
@@ -78,12 +78,7 @@ export function HeroScrub({ summary }: { summary: string }) {
     return () => cancelAnimationFrame(raf)
   }, [progress, scrubActive, videoReady])
 
-  // caption windows: three fades spread over the scroll
-  const capWindow = (i: number) => {
-    const start = 0.12 + i * 0.2
-    const end = start + 0.16
-    return clamp01((progress - start) / (end - start)) * clamp01((end + 0.06 - progress) / 0.06)
-  }
+  // end overlay progress
   const endOverlay = clamp01((progress - 0.82) / 0.12)
 
   return (
@@ -141,20 +136,24 @@ export function HeroScrub({ summary }: { summary: string }) {
         </div>
 
         {/* scroll captions */}
-        {CAPTIONS.map((c, i) => {
-          const o = capWindow(i)
-          if (o <= 0.01) return null
-          return (
-            <div
-              key={c.kicker}
-              className={`absolute bottom-[18%] ${c.align === 'left' ? 'left-[8%]' : 'right-[8%]'} z-10`}
-              style={{ opacity: o }}
-            >
-              <p className="ro-eyebrow text-foreground-600">{c.kicker}</p>
-              <p className="ro-h2 text-foreground-950">{c.line}</p>
-            </div>
-          )
-        })}
+        {scrubActive &&
+          CAPTIONS.map((c) => {
+            const t = Math.min(clamp01((progress - c.a) / 0.035), clamp01((c.b - progress) / 0.035))
+            if (t <= 0) return null
+            const right = c.align === 'right'
+            return (
+              <div
+                key={c.kicker}
+                className={`absolute bottom-[14%] z-30 max-w-[420px] px-4 md:px-0 pointer-events-none ${
+                  right ? 'right-0 md:right-14 text-right' : 'left-0 md:left-14'
+                }`}
+                style={{ opacity: t, transform: `translateY(${(1 - t) * 18}px)` }}
+              >
+                <p className="text-[11px] tracking-[0.18em] uppercase font-semibold text-primary-500">{c.kicker}</p>
+                <p className="mt-3 font-heading italic text-3xl md:text-[44px] leading-[1.05] text-foreground-950">{c.line}</p>
+              </div>
+            )
+          })}
 
         {/* end overlay */}
         {endOverlay > 0.01 && (
