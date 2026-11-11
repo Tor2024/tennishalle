@@ -31,55 +31,79 @@ export function Nav() {
 
   const links = [{ to: '/courts', label: 'Plätze' }]
 
+function NavLink({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        solid || open ? 'bg-background-50/85 backdrop-blur-md border-b border-foreground-950/10' : 'border-b border-transparent'
+    <Link
+      to={to}
+      className={`relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors after:absolute after:left-0 after:right-[0.22em] after:-bottom-0.5 after:h-px after:bg-primary-500 after:transition-transform after:origin-left ${
+        active ? 'text-foreground-950 after:scale-x-100' : 'text-foreground-800 hover:text-foreground-950 after:scale-x-0 hover:after:scale-x-100'
       }`}
     >
-      <div className="ro-container flex h-16 items-center justify-between gap-4">
-        <Link to="/" className="hero-serif th-tracking text-[22px] md:text-[26px] text-foreground-950" aria-label="TENNISHALLE Startseite">
+      {children}
+    </Link>
+  )
+}
+
+  return (
+    <header
+      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-500 ${
+        solid || open ? 'bg-background-50/85 backdrop-blur-md border-b border-foreground-950/10' : 'bg-transparent border-b border-transparent'
+      }`}
+    >
+      <nav className="w-full px-5 md:px-12 h-16 md:h-20 flex items-center justify-between gap-6">
+        <Link
+          to="/"
+          aria-label="TENNISHALLE Start"
+          className="hero-serif text-[22px] md:text-[26px] font-medium tracking-[0.32em] text-foreground-950 leading-none cursor-pointer whitespace-nowrap"
+        >
           TENNISHALLE
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-10">
           {links.map((l) => (
-            <Link key={l.to} to={l.to} className="ro-eyebrow text-foreground-700 hover:text-foreground-950 transition-colors">
+            <NavLink key={l.to} to={l.to} active={location.pathname === l.to}>
               {l.label}
-            </Link>
+            </NavLink>
           ))}
           {authed ? (
             <>
-              <Link to="/account" className="ro-eyebrow text-foreground-700 hover:text-foreground-950 transition-colors">
+              <NavLink to="/account" active={location.pathname === '/account'}>
                 Mein Konto
-              </Link>
-              <button type="button" onClick={signOut} className="ro-eyebrow text-foreground-700 hover:text-foreground-950 transition-colors cursor-pointer">
+              </NavLink>
+              <button
+                type="button"
+                onClick={signOut}
+                className="relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors text-foreground-800 hover:text-foreground-950"
+              >
                 Abmelden
               </button>
             </>
           ) : (
-            <Link to="/sign-in" className="ro-eyebrow text-foreground-700 hover:text-foreground-950 transition-colors">
+            <NavLink to="/sign-in" active={false}>
               Anmelden
-            </Link>
+            </NavLink>
           )}
           <Link
             to="/book"
-            className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-5 py-2.5 text-sm font-bold text-background-950 whitespace-nowrap"
+            className="ml-2 inline-flex items-center h-10 px-6 rounded-full border border-foreground-950/70 hover:border-primary-500 hover:bg-primary-500 hover:text-background-50 text-foreground-950 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors"
           >
             Platz buchen
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-background-950 text-primary-500">
-              <i className="ri-arrow-right-up-line text-xs" />
-            </span>
           </Link>
-        </nav>
+        </div>
 
-        <button type="button" className="md:hidden text-foreground-950 text-2xl cursor-pointer" onClick={() => setOpen(!open)} aria-label="Menü">
-          <i className={open ? 'ri-close-line' : 'ri-menu-line'} />
+        <button
+          type="button"
+          className="md:hidden w-10 h-10 flex items-center justify-center text-foreground-950 cursor-pointer"
+          onClick={() => setOpen(!open)}
+          aria-label="Menü"
+          aria-expanded={open}
+        >
+          <i className={`text-2xl ${open ? 'ri-close-line' : 'ri-menu-line'}`} />
         </button>
-      </div>
+      </nav>
 
       {open && (
-        <div className="md:hidden bg-background-50/95 backdrop-blur-md border-b border-foreground-950/10 px-4 pb-4 flex flex-col gap-3">
+        <div className="md:hidden bg-background-50/95 backdrop-blur-md border-b border-foreground-950/10 px-5 pb-4 flex flex-col gap-3">
           {links.map((l) => (
             <Link key={l.to} to={l.to} className="ro-eyebrow text-foreground-800 py-1">
               {l.label}

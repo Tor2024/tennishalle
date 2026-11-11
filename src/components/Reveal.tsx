@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 
-export function Reveal({ children, className = '', as: Tag = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'p' | 'h1' | 'h2' }) {
+export function Reveal({ children, className = '', as: Tag = 'div', delay = 0 }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'p' | 'h1' | 'h2'; delay?: number }) {
   const ref = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function Reveal({ children, className = '', as: Tag = 'div' }: { children
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <Tag ref={ref as never} className={`reveal ${className}`}>
+    <Tag ref={ref as never} className={`reveal ${className}`} style={delay ? { transitionDelay: `${delay}ms` } : undefined}>
       {children}
     </Tag>
   )

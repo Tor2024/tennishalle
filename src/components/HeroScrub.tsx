@@ -127,12 +127,17 @@ export function HeroScrub({ summary }: { summary: string }) {
         )}
 
         {/* wordmark */}
-        <div className="hero-wordmark-row">
-          <span className="hero-wordmark">
-            TENNIS
-            <span className="inline-block" style={{ width: '0.35em' }} />
+        <p aria-hidden="true" className="hero-wordmark-row">
+          <span className="hero-wordmark">TENNIS</span>
+          <span className="inline-block w-[10vw] md:w-[9vw]" />
+          <span className="hero-wordmark" style={{ marginRight: '-0.14em' }}>
             HALLE
           </span>
+        </p>
+
+        {/* scroll hint arrow */}
+        <div className="absolute bottom-6 left-0 right-0 z-10 flex justify-center" style={{ opacity: clamp01(1 - progress / 0.08) }}>
+          <i className="ri-arrow-down-line text-xl text-foreground-700" />
         </div>
 
         {/* scroll captions */}

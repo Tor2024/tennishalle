@@ -3,56 +3,159 @@ import { Link } from 'react-router-dom'
 import { Nav } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import { HeroScrub } from '../components/HeroScrub'
-import { SectionHeading } from '../components/SectionHeading'
 import { Reveal } from '../components/Reveal'
 import { CtaBand } from '../components/CtaBand'
-import { formatPrice, getCourts, type Court, type Venue } from '../lib/supabase'
+import { getCourts, type Court, type Venue } from '../lib/supabase'
 
-function CourtCard({ court, big, small }: { court: Court; big: boolean; small: boolean }) {
+function Price({ court }: { court: Court }) {
+  return (
+    <p className="text-foreground-700 text-[13px] whitespace-nowrap">
+      <span className="text-[26px] md:text-[28px] leading-none font-bold ro-grad-text-soft">
+        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(court.hourly_price ?? 0)}
+      </span>{' '}
+      / Stunde
+    </p>
+  )
+}
+
+function BookPill({ court }: { court: Court }) {
   return (
     <Link
+      aria-label={`Buchen: ${court.name}`}
+      className="group box-border inline-flex h-12 items-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap cursor-pointer transition-colors duration-300 text-[15px] leading-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background-50 justify-center bg-primary-500 border-primary-500 hover:bg-primary-400 hover:border-primary-400 text-background-50"
       to={`/book?court=${court.id}`}
-      className={`group text-left rounded-lg overflow-hidden border border-foreground-950/10 hover:border-foreground-950/30 transition-colors duration-300 ${big ? 'lg:col-span-8' : 'lg:col-span-4'}`}
     >
-      <div className={`relative w-full overflow-hidden bg-background-100 ${small ? 'h-56' : 'h-72 md:h-96'}`}>
-        {court.image_url && (
-          <img
-            loading="lazy"
-            decoding="async"
-            src={court.image_url}
-            alt={`${court.name} Tennisplatz`}
-            title={court.name}
-            className="ro-img-court w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-[1.04]"
-          />
-        )}
-        <span className="absolute bottom-2 left-3 font-wordmark text-4xl leading-none text-foreground-950/90">
-          {String(court.court_number ?? 1).padStart(2, '0')}
-        </span>
-      </div>
-      <div className="p-4 md:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <p className="ro-card-title ro-grad-lime">{court.name}</p>
-          <p className="whitespace-nowrap pt-1">
-            <strong className="text-[18px] text-foreground-950">{formatPrice(court.hourly_price)}</strong>
-            <span className="text-[13px] text-foreground-600"> /Std.</span>
-          </p>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {court.surface && (
-            <span className="ro-chip rounded-full px-2.5 py-0.5 text-[12px] text-foreground-800 capitalize">{court.surface}</span>
-          )}
-          <span className="ro-chip rounded-full px-2.5 py-0.5 text-[12px] text-foreground-800">Halle</span>
-        </div>
-      </div>
+      Platz buchen
+      <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 bg-background-50 text-primary-500">
+        <i className="ri-arrow-right-up-line text-base leading-none" />
+      </span>
     </Link>
   )
 }
+
+function AvailabilityPill({ court }: { court: Court }) {
+  return (
+    <Link
+      aria-label={`Verfügbarkeit prüfen: ${court.name}`}
+      className="group box-border inline-flex h-12 items-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap cursor-pointer transition-colors duration-300 text-[15px] leading-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background-50 justify-center bg-foreground-950/[0.05] border-foreground-950/20 hover:bg-foreground-950/[0.1] hover:border-primary-500/60 text-foreground-950"
+      to={`/book?court=${court.id}`}
+    >
+      Verfügbarkeit
+      <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 bg-primary-500 text-background-50">
+        <i className="ri-arrow-right-up-line text-base leading-none" />
+      </span>
+    </Link>
+  )
+}
+
+function Chips({ court }: { court: Court }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <span className="h-7 px-3 inline-flex items-center rounded-full ro-chip text-[12px] font-medium text-primary-500 capitalize" />
+      {court.surface && (
+        <span className="h-7 px-3 inline-flex items-center rounded-full ro-chip text-[12px] font-medium text-foreground-900 capitalize">
+          {court.surface}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/* small card: image on top, body below (like prod card 1) */
+function SmallCard({ court }: { court: Court }) {
+  return (
+    <Reveal className="h-full">
+      <article className="h-full flex flex-col rounded-[20px] ro-card p-4 md:p-6">
+        <div className="w-full h-[200px] md:h-[153px] rounded-2xl overflow-hidden ro-frame">
+          {court.image_url && (
+            <img
+              loading="lazy"
+              decoding="async"
+              alt={`${court.name} Rebound Ace Tennisplatz`}
+              title={`${court.name} – ${court.surface}`}
+              className="ro-img-court w-full h-full object-cover object-center transition-transform duration-700 hover:scale-105"
+              src={court.image_url}
+            />
+          )}
+        </div>
+        <div className="mt-6">
+          <div className="min-w-0">
+            <p className="ro-eyebrow text-foreground-700">Tennishalle</p>
+            <h3 className="mt-2 ro-card-title ro-grad-lime">{court.name}</h3>
+          </div>
+        </div>
+        <div className="mt-5">
+          <Chips court={court} />
+        </div>
+        <div className="mt-auto pt-6 flex flex-wrap items-center justify-between gap-4 border-t border-foreground-950/10">
+          <Price court={court} />
+          <BookPill court={court} />
+        </div>
+      </article>
+    </Reveal>
+  )
+}
+
+/* big card: header row (title + price), two images 3fr/1fr, chips + pills (like prod card 2) */
+function BigCard({ court, detail, delay }: { court: Court; detail: string; delay: number }) {
+  return (
+    <Reveal className="h-full" delay={delay}>
+      <article className="h-full flex flex-col rounded-[20px] ro-card ro-card-live p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="min-w-0">
+            <p className="ro-eyebrow text-foreground-700">Tennishalle</p>
+            <h3 className="mt-2 ro-card-title ro-grad-lime">{court.name}</h3>
+          </div>
+          <Price court={court} />
+        </div>
+        <div className="mt-5 grid grid-cols-[3fr_1fr] gap-2 h-[180px] md:h-[215px]">
+          <div className="rounded-2xl overflow-hidden ro-frame">
+            {court.image_url && (
+              <img
+                loading="lazy"
+                decoding="async"
+                alt={`${court.name} Rebound Ace Tennisplatz`}
+                title={`${court.name} – ${court.surface}`}
+                className="ro-img-court w-full h-full object-cover object-center transition-transform duration-700 hover:scale-105"
+                src={court.image_url}
+              />
+            )}
+          </div>
+          <div className="rounded-2xl overflow-hidden ro-frame">
+            <img
+              loading="lazy"
+              decoding="async"
+              alt="Besaitung im Detail"
+              title="Schläger-Detail"
+              className="ro-img-detail w-full h-full object-cover object-center"
+              src={detail}
+            />
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <Chips court={court} />
+          <div className="flex flex-wrap gap-2">
+            <AvailabilityPill court={court} />
+            <BookPill court={court} />
+          </div>
+        </div>
+      </article>
+    </Reveal>
+  )
+}
+
+const DETAILS = [
+  '/assets/img/gen-00-moody-black-and-white-close-up-photograp.webp',
+  '/assets/img/gen-03-one-complete-tennis-racket-shown-entirel.webp',
+  '/assets/img/gen-01-moody-close-up-photograph-of-a-fluoresce.webp',
+  '/assets/img/gen-02-moody-editorial-close-up-of-a-fluorescen.webp',
+]
 
 function CourtsPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
   const [filter, setFilter] = useState<string | null>(null)
-  const [outdoor, setOutdoor] = useState(false)
+  const [outdoorNote, setOutdoorNote] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -76,15 +179,25 @@ function CourtsPage() {
     return courts.filter((c) => c.venue_id === filter)
   }, [courts, filter])
 
-  // alternating pairs: 842fr/406fr
-  const pairs: Array<{ court: Court; big: boolean; small: boolean }[]> = []
+  // alternating pairs: [406fr, 842fr] — small first, big second (matches prod)
+  const pairs: Array<{ court: Court; big: boolean }[]> = []
   for (let i = 0; i < filtered.length; i += 2) {
     if (i + 1 < filtered.length) {
-      pairs.push([{ court: filtered[i], big: true, small: false }, { court: filtered[i + 1], big: false, small: true }])
+      pairs.push([
+        { court: filtered[i], big: false },
+        { court: filtered[i + 1], big: true },
+      ])
     } else {
-      pairs.push([{ court: filtered[i], big: true, small: false }])
+      pairs.push([{ court: filtered[i], big: true }])
     }
   }
+
+  const tabCls = (active: boolean) =>
+    `h-10 md:h-12 px-4 md:px-5 rounded-full text-[14px] md:text-base font-medium whitespace-nowrap cursor-pointer transition-colors ${
+      active
+        ? 'bg-background-50 text-primary-500 ring-1 ring-primary-500/30'
+        : 'text-foreground-800 hover:text-foreground-950 hover:bg-foreground-950/5'
+    }`
 
   return (
     <div className="ro min-h-screen">
@@ -92,86 +205,71 @@ function CourtsPage() {
       <main>
         <HeroScrub summary={summary} />
 
-        <section id="court-list" className="ro-band-list ro-spot relative">
-          <div className="ro-container py-16 md:py-24">
-            <SectionHeading lead="Wähle" script="deinen Belag" id="court-list-heading" />
-            <Reveal className="mt-4" as="p">
-              <span className="ro-body text-foreground-700 max-w-xl block">
+        <section id="court-list" className="ro-band-list ro-spot pt-16 md:pt-[100px] pb-4 scroll-mt-24" aria-labelledby="list-title">
+          <div className="ro-container">
+            <Reveal>
+              <div id="list-title">
+                <h2 className="ro-h2 text-primary-500">
+                  <span className="ro-grad-text">Wähle</span>
+                  <span className="font-script inline-block align-baseline mx-1 md:mx-2 -translate-y-[0.12em] ro-grad-lime text-[52px] md:text-[80px] leading-[1.1]">
+                    deinen Belag
+                  </span>
+                </h2>
+              </div>
+              <p className="mt-3 ro-body text-foreground-700 max-w-[560px]">
                 Alle Plätze sind live im Buchungssystem. Nach Anlage filtern und einen Platz öffnen, um die freien Zeiten zu sehen.
-              </span>
+              </p>
             </Reveal>
+          </div>
 
-            {/* filter chips */}
-            <div className="mt-8 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setFilter(null)
-                  setOutdoor(false)
-                }}
-                className={`ro-chip rounded-full px-4 py-2 text-[13px] font-bold cursor-pointer transition-colors ${!filter && !outdoor ? 'bg-primary-500 text-background-950 border-primary-500' : 'text-foreground-800'}`}
+          {/* sticky filter tabs */}
+          <div className="mt-8">
+            <div className="sticky top-20 md:top-24 z-30 flex justify-center pointer-events-none">
+              <div
+                role="tablist"
+                aria-label="Nach Anlage filtern"
+                className="pointer-events-auto max-w-full overflow-x-auto inline-flex gap-1 p-1.5 rounded-full bg-background-200/95 backdrop-blur border border-foreground-950/10"
               >
-                Alle Anlagen
-              </button>
-              {venues.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => {
-                    setFilter(v.id)
-                    setOutdoor(false)
-                  }}
-                  className={`ro-chip rounded-full px-4 py-2 text-[13px] font-bold cursor-pointer transition-colors ${filter === v.id ? 'bg-primary-500 text-background-950 border-primary-500' : 'text-foreground-800'}`}
-                >
-                  {v.name}
+                <button type="button" role="tab" aria-selected={!filter && !outdoorNote} onClick={() => { setFilter(null); setOutdoorNote(false) }} className={tabCls(!filter && !outdoorNote)}>
+                  Alle Anlagen
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setOutdoor(true)
-                }}
-                className={`ro-chip rounded-full px-4 py-2 text-[13px] font-bold cursor-pointer transition-colors ${outdoor ? 'bg-primary-500 text-background-950 border-primary-500' : 'text-foreground-800'}`}
-              >
-                Outdoor – bald
-              </button>
+                {venues.map((v) => (
+                  <button key={v.id} type="button" role="tab" aria-selected={filter === v.id} onClick={() => { setFilter(v.id); setOutdoorNote(false) }} className={tabCls(filter === v.id)}>
+                    {v.name}
+                  </button>
+                ))}
+                <button type="button" role="tab" aria-selected={outdoorNote} onClick={() => setOutdoorNote(true)} className={tabCls(outdoorNote)}>
+                  Outdoor – bald
+                </button>
+              </div>
             </div>
-
-            {/* court cards */}
-            {loaded && filtered.length === 0 && !outdoor && (
-              <p className="ro-body text-foreground-700 mt-10">Auf dieser Anlage ist aktuell kein Platz frei.</p>
-            )}
-
-            {outdoor ? (
-              <div className="mt-10 grid gap-6 lg:grid-cols-[842fr_406fr]">
-                <div className="ro-card overflow-hidden rounded-lg">
-                  <div className="relative w-full h-72 md:h-96 overflow-hidden">
-                    <img src="/assets/img/gen-04-outdoor.jpg" alt="Outdoor-Sandplatz" className="ro-img-court w-full h-full object-cover" />
-                    <span className="absolute bottom-2 left-3 font-wordmark text-4xl leading-none text-foreground-950/90">03</span>
-                  </div>
-                  <div className="p-4 md:p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="ro-card-title ro-grad-lime">Outdoor-Sandplatz</p>
-                      <p className="ro-eyebrow text-foreground-600 pt-1.5">In Planung</p>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      <span className="ro-chip rounded-full px-2.5 py-0.5 text-[12px] text-foreground-800">Bald</span>
-                      <span className="ro-chip rounded-full px-2.5 py-0.5 text-[12px] text-foreground-800">Sand</span>
-                    </div>
-                  </div>
+            {outdoorNote && (
+              <div className="ro-container">
+                <div className="pointer-events-auto mt-3 flex items-center gap-3 px-4 py-3 rounded-2xl bg-background-200/95 backdrop-blur border border-primary-500/30 text-[13px] text-foreground-800">
+                  <i className="ri-tools-line text-primary-500 text-lg" />
+                  <span>Outdoor-Plätze sind in Entwicklung – bald buchbar.</span>
+                  <button type="button" aria-label="Schließen" onClick={() => setOutdoorNote(false)} className="ml-auto w-7 h-7 rounded-full flex items-center justify-center hover:bg-foreground-950/5 cursor-pointer">
+                    <i className="ri-close-line" />
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="mt-10 flex flex-col gap-6">
-                {pairs.map((pair, i) => (
-                  <div key={i} className="grid gap-6 lg:grid-cols-[842fr_406fr]">
-                    {pair.map((p) => (
-                      <CourtCard key={p.court.id} court={p.court} big={p.big} small={p.small} />
-                    ))}
-                  </div>
-                ))}
-              </div>
             )}
+          </div>
+
+          {/* cards */}
+          <div className="ro-container mt-8 md:mt-10 space-y-4 md:space-y-8">
+            {loaded && filtered.length === 0 && <p className="ro-body text-foreground-700">Auf dieser Anlage ist aktuell kein Platz frei.</p>}
+            {pairs.map((pair, i) => (
+              <div key={i} className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-[406fr_842fr]">
+                {pair.map((p, j) =>
+                  p.big ? (
+                    <BigCard key={p.court.id} court={p.court} detail={DETAILS[i % DETAILS.length]} delay={j * 100} />
+                  ) : (
+                    <SmallCard key={p.court.id} court={p.court} />
+                  ),
+                )}
+              </div>
+            ))}
           </div>
         </section>
 
