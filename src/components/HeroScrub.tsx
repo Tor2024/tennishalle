@@ -121,8 +121,12 @@ export function HeroScrub({ summary }: { summary: string }) {
           />
         )}
 
-        {/* wordmark */}
-        <p aria-hidden="true" className="hero-wordmark-row">
+        {/* wordmark — fades out together with the intro poster layer (as in prod) */}
+        <p
+          aria-hidden="true"
+          className="hero-wordmark-row"
+          style={scrubActive ? { opacity: clamp01(1 - progress / 0.05) } : undefined}
+        >
           <span className="hero-wordmark hero-wordmark-full">TENNISHALLE</span>
         </p>
 
@@ -151,34 +155,42 @@ export function HeroScrub({ summary }: { summary: string }) {
             )
           })}
 
-        {/* end overlay */}
+        {/* end overlay — structure and classes verbatim from the prod bundle */}
         {endOverlay > 0.01 && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-background-50/55 backdrop-blur-md px-4" style={{ opacity: endOverlay }}>
-            <p className="ro-eyebrow text-foreground-600">TENNISHALLE</p>
-            <h2 className="ro-h1 text-foreground-950 text-center">
-              Dein Platz ist{' '}
-              <span className="font-script text-primary-500">bereit</span>
-            </h2>
-            <p className="ro-body max-w-lg mx-auto text-center text-foreground-700">{summary}</p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link
-                to="/book"
-                className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-6 py-3 text-sm font-bold text-background-950"
-              >
-                Platz buchen
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background-950 text-primary-500">
-                  <i className="ri-arrow-right-up-line text-xs" />
-                </span>
-              </Link>
-              <a
-                href="#court-list"
-                className="inline-flex items-center gap-2 rounded-full border border-foreground-950/15 px-6 py-3 text-sm font-bold text-foreground-950"
-              >
-                Plätze entdecken
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-foreground-950/10">
-                  <i className="ri-arrow-down-line text-xs" />
-                </span>
-              </a>
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center px-4"
+            style={{ opacity: endOverlay, pointerEvents: endOverlay > 0.6 ? 'auto' : 'none' }}
+          >
+            <div className="absolute inset-0 bg-background-50/55" />
+            <div className="relative w-full max-w-2xl text-center" style={{ transform: `translateY(${(1 - endOverlay) * 24}px)` }}>
+              <p className="text-[11px] tracking-[0.18em] uppercase font-semibold text-primary-500">TENNISHALLE</p>
+              <h2 className="mt-4 font-heading text-4xl md:text-6xl leading-[1.02] text-foreground-950">
+                Dein Platz ist{' '}
+                <span className="font-script text-primary-500 text-5xl md:text-7xl">bereit</span>
+              </h2>
+              <p className="mt-5 text-[15px] leading-relaxed text-foreground-800 max-w-lg mx-auto">
+                {summary} Buche als Gast oder mit deinem Mitgliederkonto — die Buchungsreferenz kommt sofort.
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <Link
+                  to="/book"
+                  className="group box-border inline-flex h-12 items-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap cursor-pointer transition-colors duration-300 text-[15px] leading-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background-50 justify-center bg-primary-500 border-primary-500 hover:bg-primary-400 hover:border-primary-400 text-background-50"
+                >
+                  Platz buchen
+                  <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 bg-background-50 text-primary-500">
+                    <i className="ri-arrow-right-up-line text-base leading-none" />
+                  </span>
+                </Link>
+                <a
+                  href="#court-list"
+                  className="group box-border inline-flex h-12 items-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap cursor-pointer transition-colors duration-300 text-[15px] leading-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background-50 justify-center bg-foreground-950 border-transparent hover:bg-foreground-900 text-background-50"
+                >
+                  Plätze entdecken
+                  <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 bg-primary-500 text-background-50">
+                    <i className="ri-arrow-down-line text-base leading-none" />
+                  </span>
+                </a>
+              </div>
             </div>
           </div>
         )}
