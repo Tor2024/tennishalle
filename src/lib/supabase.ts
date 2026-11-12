@@ -17,6 +17,7 @@ export interface Court {
   venue_id: string
   name: string
   surface: string | null
+  environment?: string | null
   is_active: boolean
   sort_order: number
   image_url: string | null
@@ -32,6 +33,7 @@ export interface ClubSettings {
   address: string
   contact_phone: string
   contact_email: string
+  member_cancel_cutoff_hours?: number
 }
 
 export async function getCourts(): Promise<{ courts: Court[]; venues: Venue[] }> {

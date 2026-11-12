@@ -15,10 +15,13 @@ import {
   type DayOverview,
   type SlotInfo,
 } from '../lib/supabase'
+
+// 30-Minuten-Intervals: 30 / 60 / 90 Minuten
+const DURATIONS = [30, 60, 90] as const
 import { addDays, dateParts, dateShort, todayInTz } from '../lib/dates'
 
-const STEPS = ['Anlage', 'Platz', 'Datum', 'Zeit', 'Angaben', 'Prüfen']
-const TITLES = ['Anlage wählen', 'Platz wählen', 'Datum & Dauer', 'Startzeit wählen', 'Deine Angaben', 'Prüfen & absenden']
+const STEPS = ['Anlage', 'Datum & Dauer', 'Platz & Zeit', 'Angaben', 'Prüfen']
+const TITLES = ['Anlage wählen', 'Datum & Dauer', 'Platz & Zeit wählen', 'Deine Angaben', 'Prüfen & absenden']
 
 interface AvailabilityResp {
   ok?: boolean
@@ -253,76 +256,6 @@ function VenueStep({
   )
 }
 
-/* ---------- step 1: court (_d) ---------- */
-
-function CourtStep({
-  courts,
-  currency,
-  selected,
-  onSelect,
-}: {
-  courts: Court[]
-  currency: string
-  selected: string | null
-  onSelect: (id: string) => void
-}) {
-  if (courts.length === 0)
-    return <p className="ro-body text-foreground-700">Auf dieser Anlage ist aktuell kein Platz frei.</p>
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {courts.map((c) => {
-        const sel = selected === c.id
-        return (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => onSelect(c.id)}
-            aria-pressed={sel}
-            className={`group text-left rounded-lg overflow-hidden border transition-colors duration-300 cursor-pointer bg-foreground-950/[0.03] ${
-              sel ? 'border-primary-500' : 'border-foreground-950/10 hover:border-foreground-950/30'
-            }`}
-          >
-            <div className="relative w-full h-40 overflow-hidden bg-background-100">
-              {c.image_url && (
-                <img
-                  src={c.image_url}
-                  alt={`${c.name} Tennisplatz`}
-                  title={c.name}
-                  className="ro-img-court w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-[1.04]"
-                />
-              )}
-              <span className="absolute bottom-2 left-3 font-wordmark text-4xl leading-none text-foreground-950/90">
-                {String(c.court_number ?? 1).padStart(2, '0')}
-              </span>
-              {sel && (
-                <span className="absolute top-3 right-3 w-8 h-8 rounded-full bg-primary-500 text-background-50 flex items-center justify-center">
-                  <i className="ri-check-line text-base" />
-                </span>
-              )}
-            </div>
-            <div className="p-4 md:p-5">
-              <div className="flex items-start justify-between gap-3">
-                <p className="ro-card-title ro-grad-lime">{c.name}</p>
-                <p className="whitespace-nowrap pt-1">
-                  <strong className="text-[18px] text-foreground-950">{formatPrice(c.hourly_price, currency)}</strong>
-                  <span className="text-[13px] text-foreground-600"> /Std.</span>
-                </p>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {c.surface && (
-                  <span className="ro-chip rounded-full px-2.5 py-0.5 text-[12px] text-foreground-800 capitalize">
-                    {c.surface}
-                  </span>
-                )}
-              </div>
-            </div>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 /* ---------- step 2: date & duration (yd) ---------- */
 
 const LEGEND = [
@@ -342,7 +275,7 @@ function DateStep({
 }: {
   settings: ClubSettings
   date: string
-  duration: number
+  duration: 30 | 60 | 90
   overview: DayOverview[]
   onChange: (patch: { date?: string; duration?: number }) => void
   onBack: () => void
@@ -411,7 +344,7 @@ function DateStep({
 
       <p className="mt-8 ro-eyebrow text-foreground-600">Dauer</p>
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {settings.allowed_durations.map((d) => {
+        {DURATIONS.map((d) => {
           const sel = duration === d
           return (
             <button
@@ -435,111 +368,147 @@ function DateStep({
         })}
       </div>
 
-      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Zeiten ansehen" nextDisabled={!date || !settings.allowed_durations.includes(duration)} />
+      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Zeiten ansehen" nextDisabled={!date || !DURATIONS.includes(duration)} />
     </div>
   )
 }
 
 /* ---------- step 3: time list (bd) ---------- */
 
-function TimeStep({
-  court,
+/* ---------- step 1+2 merged: court × time table (tz) ---------- */
+
+const SLOT_START = 6   // 06:00
+const SLOT_END = 23    // 23:00 (last slot 23:00–23:30)
+
+function slotTimes(): string[] {
+  const out: string[] = []
+  for (let h = SLOT_START; h < SLOT_END; h++) {
+    out.push(`${String(h).padStart(2,'0')}:00`)
+    out.push(`${String(h).padStart(2,'0')}:30`)
+  }
+  return out
+}
+
+const SLOTS = slotTimes()
+
+interface TableSlot {
+  courtId: string
+  time: string
+  available: boolean
+}
+
+function TimeTable({
+  courts,
   date,
   duration,
-  currency,
   selected,
   onSelect,
   onBack,
-  onNext,
 }: {
-  court: Court
+  courts: Court[]
   date: string
-  duration: number
-  currency: string
-  selected: string | null
-  onSelect: (t: string | null) => void
+  duration: 30 | 60 | 90
+  selected: { courtId: string | null; time: string | null } | null
+  onSelect: (courtId: string, time: string) => void
   onBack: () => void
-  onNext: () => void
 }) {
-  const [resp, setResp] = useState<AvailabilityResp | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [spin, setSpin] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [table, setTable] = useState<Map<string, TableSlot>>(new Map())
 
-  const load = async (showSpin: boolean) => {
-    if (showSpin) setSpin(true)
-    setLoading(true)
-    const r = await api<AvailabilityResp>('availability', { court_id: court.id, date, duration })
-    setResp(r)
-    setLoading(false)
-    setSpin(false)
+  const load = async () => {
+    setBusy(true)
+    const m = new Map<string, TableSlot>()
+    await Promise.all(courts.map(async (c) => {
+      try {
+        const r = await api<AvailabilityResp>('availability', { court_id: c.id, date, duration })
+        ;(r.times ?? []).forEach((t) => m.set(`${c.id}|${t.time}`, { courtId: c.id, time: t.time, available: t.available }))
+      } catch { /* keep missing as unknown */ }
+    }))
+    setTable(m)
+    setBusy(false)
   }
 
-  useEffect(() => {
-    load(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [court.id, date, duration])
+  useEffect(() => { load() }, [courts.length, date, duration])
 
-  const times = resp?.times ?? []
-  const available = times.filter((t) => t.available)
-  const sel = resp?.times?.find((t) => t.time === selected)
+  const selCourt = selected?.courtId ?? null
+  const selTime = selected?.time ?? null
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center justify-between gap-3">
         <span className="ro-chip rounded-full px-3 py-1.5 text-[13px] text-foreground-800">{dateShort(date)}</span>
         <span className="ro-chip rounded-full px-3 py-1.5 text-[13px] text-foreground-800">{duration} min</span>
-        {sel && sel.price !== undefined && sel.price !== null && (
-          <span className="rounded-full bg-primary-500/10 border border-primary-500/40 px-3 py-1.5 text-[13px] font-bold text-primary-500">
-            {formatPrice(sel.price, currency)}
-          </span>
-        )}
         <button
           type="button"
-          onClick={() => load(true)}
-          className="ml-auto inline-flex items-center gap-2 h-9 px-4 rounded-full border border-foreground-950/15 text-[13px] font-semibold text-foreground-800 cursor-pointer hover:border-foreground-950/40 transition-colors"
+          onClick={load}
+          disabled={busy}
+          className="ml-auto inline-flex items-center gap-2 h-9 px-4 rounded-full border border-foreground-950/15 text-[13px] font-semibold text-foreground-800 cursor-pointer hover:border-foreground-950/40 transition-colors disabled:opacity-50"
         >
-          <i className={`ri-refresh-line ${spin ? 'animate-spin' : ''}`} />
+          <i className={`ri-refresh-line ${busy ? 'animate-spin' : ''}`} />
           Aktualisieren
         </button>
       </div>
 
-      {loading ? (
-        <div className="mt-5 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+      {busy && table.size === 0 ? (
+        <div className="mt-6 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
           {Array.from({ length: 18 }).map((_, i) => (
             <div key={i} className="h-12 rounded-md bg-foreground-950/[0.06] animate-pulse" />
           ))}
         </div>
-      ) : available.length === 0 ? (
-        <p className="ro-body text-foreground-700 pb-4 mt-5">
-          Keine freien Startzeiten mehr für {duration} Minuten an diesem Tag. Wähle eine kürzere Dauer oder ein anderes
-          Datum.
-        </p>
       ) : (
-        <div className="mt-5 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
-          {available.map((t) => {
-            const isSel = selected === t.time
-            return (
-              <button
-                key={t.time}
-                type="button"
-                disabled={!t.available}
-                onClick={() => onSelect(isSel ? null : t.time)}
-                aria-pressed={isSel}
-                aria-label={`${t.time} ${t.available ? 'verfügbar' : 'belegt'}`}
-                className={`h-12 rounded-md text-[15px] tabular-nums border transition-colors cursor-pointer ${
-                  isSel
-                    ? 'bg-primary-500 text-background-50 border-primary-500 font-bold'
-                    : 'bg-foreground-950/[0.04] border-foreground-950/15 text-foreground-950 font-medium hover:border-primary-500/70'
-                }`}
-              >
-                {t.time}
-              </button>
-            )
-          })}
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr>
+                <th className="text-left py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-600 w-24">Zeit</th>
+                {courts.map((c) => (
+                  <th key={c.id} className="py-3 text-center text-[12px] font-semibold text-foreground-900">
+                    <span className="block text-foreground-700">{c.name}</span>
+                    <span className="block text-[10px] text-foreground-500">{c.surface ?? ''}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SLOTS.map((time) => (
+                <tr key={time} className="border-t border-foreground-950/10">
+                  <td className="py-2.5 text-[13px] tabular-nums text-foreground-800 font-medium whitespace-nowrap">{time} – {minToHHMM(hhmmToMin(time) + duration)}</td>
+                  {courts.map((c) => {
+                    const s = table.get(`${c.id}|${time}`)
+                    const available = s?.available ?? true
+                    const isSel = selCourt === c.id && selTime === time
+                    return (
+                      <td key={c.id} className="py-2.5">
+                        <button
+                          type="button"
+                          disabled={!available || busy}
+                          onClick={() => available && onSelect(c.id, time)}
+                          aria-pressed={isSel}
+                          aria-label={`${time} ${c.name} ${available ? 'verfügbar' : 'belegt'}`}
+                          className="block w-full rounded-md border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                            isSel
+                              ? 'bg-primary-500 text-background-50 border-primary-500 font-bold'
+                              : available
+                                ? 'bg-foreground-950/[0.04] border-foreground-950/15 text-foreground-950 font-medium hover:border-primary-500/70'
+                                : 'bg-foreground-950/[0.03] border-foreground-950/10 text-foreground-400'
+                          }"
+                        >
+                          {time}
+                        </button>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-4 text-[13px] text-foreground-600">
+            Belegte Slots sind grau und nicht anklickbar. Wähle eine freie Zelle.
+          </p>
         </div>
       )}
 
-      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Weiter" nextDisabled={!selected} />
+      <StepFooter onBack={onBack} onNext={() => {}} nextLabel="Weiter" nextDisabled={!selCourt || !selTime} />
     </div>
   )
 }
@@ -662,7 +631,7 @@ function ReviewStep({
   venue: Venue | null
   settings: ClubSettings
   date: string
-  duration: number
+  duration: 30 | 60 | 90
   time: string
   details: { name: string; email: string; phone: string; notes: string }
   onBack: () => void
@@ -827,6 +796,34 @@ function Success({ result, onAgain }: { result: NonNullable<CreateResp['reservat
 
 /* ---------- page ---------- */
 
+// hardcoded outdoor courts (BД без колонки environment — визуал только на странице)
+const OUTDOOR_COURTS: Court[] = [
+  {
+    id: 'outdoor-3',
+    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
+    name: 'Platz 3',
+    surface: 'Sand',
+    environment: 'Außenplatz',
+    is_active: true,
+    sort_order: 3,
+    image_url: '/assets/img/gen-04-outdoor-urban-tennis-court-at-golden-hou.jpg',
+    hourly_price: 20,
+    court_number: 3,
+  },
+  {
+    id: 'outdoor-4',
+    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
+    name: 'Platz 4',
+    surface: 'Sand',
+    environment: 'Außenplatz',
+    is_active: true,
+    sort_order: 4,
+    image_url: '/assets/img/gen-04-overhead-aerial-view-of-three-dark-green.webp',
+    hourly_price: 20,
+    court_number: 4,
+  },
+]
+
 export default function BookPage() {
   const [params] = useSearchParams()
 
@@ -838,18 +835,18 @@ export default function BookPage() {
 
   const [step, setStep] = useState(0)
   const [venueId, setVenueId] = useState<string | null>(null)
-  const [courtId, setCourtId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<{ courtId: string | null; time: string | null }>({ courtId: null, time: null })
   const [date, setDate] = useState('')
-  const [duration, setDuration] = useState(90)
-  const [, setSelectedSlots] = useState('')
-  const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [duration, setDuration] = useState<30 | 60 | 90>(30)
   const [details, setDetails] = useState({ name: '', email: '', phone: '', notes: '' })
   const [result, setResult] = useState<NonNullable<CreateResp['reservation']> | null>(null)
 
   useEffect(() => {
     Promise.all([getCourts(), getClubSettings()]).then(([cv, s]) => {
+      // merge DB courts + hardcoded outdoor courts (Platz 3, Platz 4)
+      const allCourts = [...cv.courts, ...OUTDOOR_COURTS]
       setVenues(cv.venues)
-      setCourts(cv.courts)
+      setCourts(allCourts)
       setSettings(s)
       setLoading(false)
       // URL prefill
@@ -857,21 +854,21 @@ export default function BookPage() {
       const pDate = params.get('date')
       const pDur = Number(params.get('duration'))
       let target = 0
-      const court = pCourt ? cv.courts.find((c) => c.id === pCourt && c.is_active) : undefined
+      const court = pCourt ? allCourts.find((c) => c.id === pCourt && c.is_active) : undefined
       if (court) {
         setVenueId(court.venue_id)
-        setCourtId(court.id)
+        setSelected({ courtId: court.id, time: null })
         target = 1
       }
       const tz = s?.timezone ?? 'Europe/Berlin'
       const today = todayInTz(tz)
       if (s && pDate && /^\d{4}-\d{2}-\d{2}$/.test(pDate) && pDate >= today && pDate <= addDays(today, s.booking_window_days)) {
         setDate(pDate)
-        if (s.allowed_durations.includes(pDur)) {
-          setDuration(pDur)
-          target = court ? 3 : 2
+        if (DURATIONS.includes(pDur as 30 | 60 | 90)) {
+          setDuration(pDur as 30 | 60 | 90)
+          target = court ? 2 : 1
         } else {
-          target = court ? 2 : 2
+          target = court ? 2 : 1
         }
       }
       if (target > 0) setStep(target)
@@ -888,7 +885,7 @@ export default function BookPage() {
   }, [step])
 
   const venue = venues.find((v) => v.id === venueId) ?? null
-  const court = courts.find((c) => c.id === courtId) ?? null
+  const court = courts.find((c) => c.id === selected.courtId) ?? null
   const venueCourts = useMemo(() => courts.filter((c) => c.venue_id === venueId), [courts, venueId])
 
   const sidebarImage =
@@ -899,14 +896,15 @@ export default function BookPage() {
   const slotSummary: [string, string | null][] = [
     ['Anlage', venue?.name ?? null],
     ['Platz', court ? `${court.name}${court.surface ? ` · ${court.surface}` : ''}` : null],
-    ['Datum', step >= 2 && date ? dateShort(date) : null],
-    ['Zeit', selectedTime ? `1x30 min – ${selectedTime} – ${minToHHMM(hhmmToMin(selectedTime) + 30)}` : step >= 2 ? `${duration} min` : null],
+    ['Datum', step >= 1 && date ? dateShort(date) : null],
+    ['Zeit', selected.time ? `1x${duration} min – ${selected.time} – ${minToHHMM(hhmmToMin(selected.time) + duration)}` : step >= 1 ? `${duration} min` : null],
   ]
 
   const jump = (i: number) => {
     if (i < step) {
       setResult(null)
       setStep(i)
+      setSelected({ courtId: null, time: null })
     }
   }
 
@@ -914,11 +912,9 @@ export default function BookPage() {
     setResult(null)
     setStep(0)
     setVenueId(null)
-    setCourtId(null)
+    setSelected({ courtId: null, time: null })
     setDate('')
-    setDuration(90)
-    setSelectedSlots('')
-    setSelectedTime(null)
+    setDuration(30)
   }
 
   return (
@@ -965,28 +961,14 @@ export default function BookPage() {
                       selected={venueId}
                       onSelect={(id) => {
                         setVenueId(id)
-                        setCourtId(null)
+                        setSelected({ courtId: null, time: null })
                         setStep(1)
                       }}
                     />
                   </div>
                 )}
 
-                {step === 1 && venue && (
-                  <div className="mt-5">
-                    <CourtStep
-                      courts={venueCourts}
-                      currency={settings?.currency ?? 'EUR'}
-                      selected={courtId}
-                      onSelect={(id) => {
-                        setCourtId(id)
-                        setStep(2)
-                      }}
-                    />
-                  </div>
-                )}
-
-                {step === 2 && settings && (
+                {step === 1 && settings && (
                   <div className="mt-5">
                     <DateStep
                       settings={settings}
@@ -995,44 +977,42 @@ export default function BookPage() {
                       overview={overview}
                       onChange={(p) => {
                         if (p.date !== undefined) setDate(p.date)
-                        if (p.duration !== undefined) setDuration(p.duration)
+                        if (p.duration !== undefined) setDuration(p.duration as 30 | 60 | 90)
                       }}
-                      onBack={() => setStep(1)}
-                      onNext={() => setStep(3)}
+                      onBack={() => setStep(0)}
+                      onNext={() => setStep(2)}
                     />
                   </div>
                 )}
 
-                {step === 3 && court && settings && (
+                {step === 2 && venue && settings && (
                   <div className="mt-5">
-                    <TimeStep
-                      court={court}
+                    <TimeTable
+                      courts={venueCourts}
                       date={date}
                       duration={duration}
-                      currency={settings.currency}
-                      selected={selectedTime}
-                      onSelect={(t) => {
-                        setSelectedTime(t)
-                        setSelectedSlots(t ? `${court.id}|${t}` : '')
+                      selected={selected}
+                      onSelect={(courtId, time) => {
+                        setSelected({ courtId, time })
+                        setStep(3)
                       }}
+                      onBack={() => setStep(1)}
+                    />
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="mt-5">
+                    <DetailsStep
+                      details={details}
+                      onPatch={(p) => setDetails((d) => ({ ...d, ...p }))}
                       onBack={() => setStep(2)}
                       onNext={() => setStep(4)}
                     />
                   </div>
                 )}
 
-                {step === 4 && (
-                  <div className="mt-5">
-                    <DetailsStep
-                      details={details}
-                      onPatch={(p) => setDetails((d) => ({ ...d, ...p }))}
-                      onBack={() => setStep(3)}
-                      onNext={() => setStep(5)}
-                    />
-                  </div>
-                )}
-
-                {step === 5 && court && settings && (
+                {step === 4 && court && settings && (
                   <div className="mt-5">
                     <ReviewStep
                       court={court}
@@ -1040,14 +1020,13 @@ export default function BookPage() {
                       settings={settings}
                       date={date}
                       duration={duration}
-                      time={selectedTime ?? ''}
+                      time={selected.time ?? ''}
                       details={details}
-                      onBack={() => setStep(4)}
+                      onBack={() => setStep(3)}
                       onSuccess={(r) => setResult(r)}
                       onConflict={() => {
-                        setSelectedSlots('')
-                        setSelectedTime(null)
-                        setStep(3)
+                        setSelected({ courtId: null, time: null })
+                        setStep(2)
                       }}
                     />
                   </div>

@@ -51,7 +51,11 @@ function AvailabilityPill({ court }: { court: Court }) {
 function Chips({ court }: { court: Court }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <span className="h-7 px-3 inline-flex items-center rounded-full ro-chip text-[12px] font-medium text-primary-500 capitalize" />
+      {court.environment && (
+        <span className="h-7 px-3 inline-flex items-center rounded-full ro-chip text-[12px] font-medium text-primary-500 capitalize">
+          {court.environment}
+        </span>
+      )}
       {court.surface && (
         <span className="h-7 px-3 inline-flex items-center rounded-full ro-chip text-[12px] font-medium text-foreground-900 capitalize">
           {court.surface}
@@ -80,7 +84,14 @@ function SmallCard({ court }: { court: Court }) {
         </div>
         <div className="mt-6">
           <div className="min-w-0">
-            <p className="ro-eyebrow text-foreground-700">Tennishalle</p>
+            <div className="flex flex-wrap items-baseline gap-2">
+              <p className="ro-eyebrow text-foreground-700">Tennishalle</p>
+              {court.court_number && (
+                <span className="text-[11px] tracking-[0.18em] uppercase font-semibold text-foreground-500">
+                  Platz {court.court_number}
+                </span>
+              )}
+            </div>
             <h3 className="mt-2 ro-card-title ro-grad-lime">{court.name}</h3>
           </div>
         </div>
@@ -103,7 +114,14 @@ function BigCard({ court, detail, delay }: { court: Court; detail: string; delay
       <article className="h-full flex flex-col rounded-[20px] ro-card ro-card-live p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="min-w-0">
-            <p className="ro-eyebrow text-foreground-700">Tennishalle</p>
+            <div className="flex flex-wrap items-baseline gap-2">
+              <p className="ro-eyebrow text-foreground-700">Tennishalle</p>
+              {court.court_number && (
+                <span className="text-[11px] tracking-[0.18em] uppercase font-semibold text-foreground-500">
+                  Platz {court.court_number}
+                </span>
+              )}
+            </div>
             <h3 className="mt-2 ro-card-title ro-grad-lime">{court.name}</h3>
           </div>
           <Price court={court} />
@@ -151,17 +169,44 @@ const DETAILS = [
   '/assets/img/gen-02-moody-editorial-close-up-of-a-fluorescen.webp',
 ]
 
+// hardcoded outdoor courts (BД без колонки environment — визуал только на странице)
+const OUTDOOR_COURTS: Court[] = [
+  {
+    id: 'outdoor-3',
+    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
+    name: 'Platz 3',
+    surface: 'Sand',
+    environment: 'Außenplatz',
+    is_active: true,
+    sort_order: 3,
+    image_url: '/assets/img/gen-04-outdoor-urban-tennis-court-at-golden-hou.jpg',
+    hourly_price: 20,
+    court_number: 3,
+  },
+  {
+    id: 'outdoor-4',
+    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
+    name: 'Platz 4',
+    surface: 'Sand',
+    environment: 'Außenplatz',
+    is_active: true,
+    sort_order: 4,
+    image_url: '/assets/img/gen-04-overhead-aerial-view-of-three-dark-green.webp',
+    hourly_price: 20,
+    court_number: 4,
+  },
+]
+
 function CourtsPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
   const [filter, setFilter] = useState<string | null>(null)
-  const [outdoorNote, setOutdoorNote] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     getCourts()
       .then((r) => {
-        setCourts(r.courts)
+        setCourts([...r.courts, ...OUTDOOR_COURTS])
         setVenues(r.venues)
         setLoaded(true)
       })
@@ -171,12 +216,13 @@ function CourtsPage() {
   const summary = useMemo(() => {
     const n = courts.length
     const v = venues.length
-    return `${n} ${n === 1 ? 'Platz' : 'Plätze'} in ${v} ${v === 1 ? 'Anlage' : 'Anlagen'}. Belag wählen, Live-Verfügbarkeit prüfen und mit wenigen Klicks reservieren.`
+    return `${n} ${n === 1 ? 'Platz' : 'Plätze'} in ${v} ${v === 1 ? 'Anlage' : 'Anlagen'}. Platz wählen, Live-Verfügbarkeit prüfen und mit wenigen Klicks reservieren.`
   }, [courts, venues])
 
   const filtered = useMemo(() => {
-    if (!filter) return courts
-    return courts.filter((c) => c.venue_id === filter)
+    if (!filter || filter === 'all') return courts
+    if (filter === 'outdoor') return courts.filter((c) => c.environment === 'Außenplatz')
+    return courts.filter((c) => c.venue_id === filter && c.environment !== 'Außenplatz')
   }, [courts, filter])
 
   // alternating pairs: [406fr, 842fr] — small first, big second (matches prod)
@@ -212,7 +258,7 @@ function CourtsPage() {
                 <h2 className="ro-h2 text-primary-500">
                   <span className="ro-grad-text">Wähle</span>
                   <span className="font-script inline-block align-baseline mx-1 md:mx-2 -translate-y-[0.12em] ro-grad-lime text-[52px] md:text-[80px] leading-[1.1]">
-                    deinen Belag
+                    deinen Platz
                   </span>
                 </h2>
               </div>
@@ -230,30 +276,19 @@ function CourtsPage() {
                 aria-label="Nach Anlage filtern"
                 className="pointer-events-auto max-w-full overflow-x-auto inline-flex gap-1 p-1.5 rounded-full bg-background-200/95 backdrop-blur border border-foreground-950/10"
               >
-                <button type="button" role="tab" aria-selected={!filter && !outdoorNote} onClick={() => { setFilter(null); setOutdoorNote(false) }} className={tabCls(!filter && !outdoorNote)}>
+                <button type="button" role="tab" aria-selected={!filter} onClick={() => setFilter(null)} className={tabCls(!filter)}>
                   Alle Anlagen
                 </button>
                 {venues.map((v) => (
-                  <button key={v.id} type="button" role="tab" aria-selected={filter === v.id} onClick={() => { setFilter(v.id); setOutdoorNote(false) }} className={tabCls(filter === v.id)}>
+                  <button key={v.id} type="button" role="tab" aria-selected={filter === v.id} onClick={() => setFilter(v.id)} className={tabCls(filter === v.id)}>
                     {v.name}
                   </button>
                 ))}
-                <button type="button" role="tab" aria-selected={outdoorNote} onClick={() => setOutdoorNote(true)} className={tabCls(outdoorNote)}>
-                  Outdoor – bald
+                <button key="outdoor" type="button" role="tab" aria-selected={filter === 'outdoor'} onClick={() => setFilter('outdoor')} className={tabCls(filter === 'outdoor')}>
+                  Outdoor
                 </button>
               </div>
             </div>
-            {outdoorNote && (
-              <div className="ro-container">
-                <div className="pointer-events-auto mt-3 flex items-center gap-3 px-4 py-3 rounded-2xl bg-background-200/95 backdrop-blur border border-primary-500/30 text-[13px] text-foreground-800">
-                  <i className="ri-tools-line text-primary-500 text-lg" />
-                  <span>Outdoor-Plätze sind in Entwicklung – bald buchbar.</span>
-                  <button type="button" aria-label="Schließen" onClick={() => setOutdoorNote(false)} className="ml-auto w-7 h-7 rounded-full flex items-center justify-center hover:bg-foreground-950/5 cursor-pointer">
-                    <i className="ri-close-line" />
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* cards */}
