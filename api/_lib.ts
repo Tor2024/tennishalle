@@ -67,6 +67,7 @@ export interface SessionUser {
   email: string;
   full_name: string | null;
   role: "member" | "owner" | "admin";
+  phone?: string | null;
 }
 
 const SESSION_COOKIE = "th_session";
@@ -103,7 +104,7 @@ export async function getUser(req: Request): Promise<SessionUser | null> {
     full_name: string | null;
     role: SessionUser["role"];
   }>(
-    `select u.id, u.email, u.full_name, u.role
+    `select u.id, u.email, u.full_name, u.role, u.phone
        from app_sessions s join app_users u on u.id = s.user_id
       where s.token_hash = $1 and s.expires_at > now()`,
     [tokenHash],

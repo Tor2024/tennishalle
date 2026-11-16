@@ -38,6 +38,7 @@ export interface AppUser {
   email: string
   full_name: string | null
   role: 'member' | 'owner' | 'admin'
+  phone?: string | null
 }
 
 export interface DayOverview {
