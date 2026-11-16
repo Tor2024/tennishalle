@@ -154,9 +154,12 @@ export function Nav() {
               )}
             </div>
           ) : (
-            <NavLink to="/sign-in" active={false}>
+            <Link
+              to="/sign-in"
+              className="inline-flex items-center h-10 px-6 rounded-full border bg-primary-500 border-primary-500 hover:bg-primary-400 hover:border-primary-400 text-background-50 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors"
+            >
               Anmelden
-            </NavLink>
+            </Link>
           )}
           <Link
             to="/book"
