@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiData, apiAuth } from '../lib/api'
 
 // structure and classes verbatim from the prod bundle (Ru footer component)
@@ -7,15 +7,20 @@ export function Footer() {
   const [settings, setSettings] = useState<{ address?: string; contact_phone?: string; contact_email?: string } | null>(null)
   const [authed, setAuthed] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     apiData<{ ok: boolean; settings?: { address?: string; contact_phone?: string; contact_email?: string } | null }>('bootstrap')
       .then((r) => setSettings(r.settings ?? null))
       .catch(() => {})
+  }, [])
+
+  // re-check auth on every route change (sign-in/sign-out via Nav must update the footer)
+  useEffect(() => {
     apiAuth<{ ok: boolean }>('me')
       .then((r) => setAuthed(!!r?.ok))
-      .catch(() => {})
-  }, [])
+      .catch(() => setAuthed(false))
+  }, [location.pathname])
 
   const signOut = () => {
     apiAuth('signout', {})
