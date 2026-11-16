@@ -9,6 +9,12 @@ function normalizePhone(raw: string): string {
   return raw.replace(/[^\d+]/g, "");
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function POST(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -88,7 +94,7 @@ async function googleComplete(body: any): Promise<Response> {
   if (!pendingToken || !phone || !PHONE_RE.test(phone.trim()))
     return json({ ok: false, code: "bad_request", message: "Bitte gib eine gültige Telefonnummer an." }, 400);
 
-  const pendingHash = await sha256HexPending(pendingToken);
+  const pendingHash = await sha256Hex(pendingToken);
   const p = db();
   const pend = await p.query<{ user_id: string; expires_at: string }>(
     `select user_id, expires_at from google_pending_users where token_hash = $1 and expires_at > now()`,
