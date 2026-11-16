@@ -208,13 +208,13 @@ export async function POST(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return json({}, 200)
   try {
     const body = req.body ? (await req.json()) as Record<string, unknown> : {}
+    // 'me' handled without admin requirement (used by /admin loader to detect role)
+    if (body.action === 'me') {
+      const user = await getUser(req)
+      return json({ ok: true, user: user ?? null, role: user?.role ?? null })
+    }
     const auth = await requireAdmin(req)
     if ('resp' in auth) {
-      // 'me' handled without admin requirement (used by /admin loader to detect role)
-      if (body.action === 'me') {
-        const user = await getUser(req)
-        return json({ ok: true, user: user ?? null, role: user?.role ?? null })
-      }
       return auth.resp
     }
     switch (body.action) {
