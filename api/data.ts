@@ -22,6 +22,7 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "news") return await news();
     if (body.action === "events") return await news();
     if (body.action === "legal") return await legal();
+    if (body.action === "price_overview") return await priceOverview();
     if (body.action === "court_blocks") return await courtBlocks(body);
     if (body.action === "track") return await track(body);
     if (body.action === "contact") return await contact(body);
@@ -66,6 +67,34 @@ async function news(): Promise<Response> {
     p.query(`select id, kind, title, participants, starts_at, ends_at, description from events where is_published = true and starts_at >= now() - interval '2 hours' order by starts_at limit 8`),
   ]);
   return json({ ok: true, news: postsRes.rows, promo: promoRes.rows[0] ?? null, events: eventsRes.rows });
+}
+
+/** Обзор цен по всем кортам: per-court min/max часовая цена из ценовых зон (для карточек «от … до …»). */
+async function priceOverview(): Promise<Response> {
+  const p = db();
+  const r = await p.query(
+    `select c.id,
+            c.hourly_price,
+            min(z.price_cents) as min_price_cents,
+            max(z.price_cents) as max_price_cents,
+            count(z.id) as zone_count
+       from courts c
+       left join price_zones z on z.court_id = c.id
+      where c.is_active = true
+      group by c.id, c.hourly_price`,
+  );
+  const prices: Record<string, { hourly_price: number | null; min_hourly: number | null; max_hourly: number | null; zone_count: number }> = {};
+  for (const row of r.rows as Record<string, unknown>[]) {
+    const minC = row.min_price_cents == null ? null : Number(row.min_price_cents);
+    const maxC = row.max_price_cents == null ? null : Number(row.max_price_cents);
+    prices[String(row.id)] = {
+      hourly_price: row.hourly_price == null ? null : Number(row.hourly_price),
+      min_hourly: minC == null ? null : minC / 100,
+      max_hourly: maxC == null ? null : maxC / 100,
+      zone_count: Number(row.zone_count ?? 0),
+    };
+  }
+  return json({ ok: true, prices });
 }
 
 /** Правовые страницы (agb/impressum/datenschutz/cookies). */

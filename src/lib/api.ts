@@ -60,6 +60,13 @@ export interface CourtBlock {
   reason: string
 }
 
+export interface CourtPriceInfo {
+  hourly_price: number | null
+  min_hourly: number | null
+  max_hourly: number | null
+  zone_count: number
+}
+
 async function post<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
@@ -99,6 +106,16 @@ export async function getBootstrap(): Promise<{ venues: Venue[]; courts: Court[]
 export async function getCourtBlocks(date: string): Promise<CourtBlock[]> {
   const r = await apiData<{ ok: boolean; blocks: CourtBlock[] }>('court_blocks', { date })
   return r.blocks ?? []
+}
+
+/** Обзор цен по всем кортам из ценовых зон (min/max часовая цена) — для карточек и админки. */
+export async function getPriceOverview(): Promise<Record<string, CourtPriceInfo>> {
+  try {
+    const r = await apiData<{ ok: boolean; prices: Record<string, CourtPriceInfo> }>('price_overview')
+    return r.prices ?? {}
+  } catch {
+    return {}
+  }
 }
 
 export async function me(): Promise<AppUser | null> {
