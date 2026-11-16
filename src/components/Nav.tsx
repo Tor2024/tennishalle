@@ -34,9 +34,8 @@ export function Nav() {
       return
     }
     const ids = ['belegung', 'aktuelles', 'partner', 'court-list', 'kontakt']
-    let raf = 0
+    let t: ReturnType<typeof setTimeout> | undefined
     const compute = () => {
-      raf = 0
       let current = ''
       const line = window.innerHeight * 0.35
       for (const id of ids) {
@@ -46,16 +45,18 @@ export function Nav() {
       }
       setActiveSection(current)
     }
+    // setTimeout throttle (not rAF): rAF is paused in background tabs, which broke automated tests
     const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(compute)
+      clearTimeout(t)
+      t = setTimeout(compute, 100)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
     compute()
     return () => {
+      clearTimeout(t)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
-      if (raf) cancelAnimationFrame(raf)
     }
   }, [location.pathname])
 
