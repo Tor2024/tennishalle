@@ -276,6 +276,12 @@ export default function SignInPage() {
                       {success}
                     </p>
                   )}
+                  {success && (
+                    <p className="mt-2 flex items-start gap-2 text-[12px] text-foreground-500">
+                      <i className="ri-mail-settings-line mt-0.5" />
+                      Tipp: Auch den Spam-/Werbeordner deines Postfachs prüfen.
+                    </p>
+                  )}
 
                   {mode === 'up' && (
                     <label className="block mt-6">

@@ -72,6 +72,7 @@ async function sendVerificationEmail(to: string, token: string): Promise<BrevoRe
 <p><a href="${link}" style="display:inline-block;background:#d6f65a;color:#0b120c;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">E-Mail bestätigen</a></p>
 <p style="color:#666;font-size:13px">Oder kopiere diesen Link in deinen Browser:<br>${link}</p>
 <p style="color:#666;font-size:13px">Der Link gilt für 24 Stunden. Falls du dich nicht registriert hast, ignoriere diese E-Mail.</p>
+<p style="color:#666;font-size:13px">Hinweis: Bitte prüfe auch deinen <b>Spam-/Werbeordner</b>, falls die E-Mail nicht ankommt.</p>
 </div>`,
     }),
   });
@@ -103,7 +104,7 @@ async function resendVerification(body: any): Promise<Response> {
   } catch {
     return json({ ok: false, code: "mail", message: "E-Mail konnte nicht gesendet werden. Bitte später erneut versuchen." }, 500);
   }
-  return json({ ok: true, message: "Bestätigungs-E-Mail gesendet." });
+  return json({ ok: true, message: "Bestätigungs-E-Mail gesendet. Bitte prüfe dein Postfach — auch den Spam-Ordner." });
 }
 
 // ---------- обычная регистрация / вход ----------
@@ -141,7 +142,7 @@ async function signup(body: any): Promise<Response> {
     return json({ ok: false, code: "mail", message: "Konto erstellt, aber Bestätigungs-E-Mail konnte nicht gesendet werden. Bitte fordere eine neue an." }, 500);
   }
   // до подтверждения сессию НЕ выдаём
-  return json({ ok: true, requires_verification: true, message: "Bitte bestätige deine E-Mail-Adresse. Wir haben dir einen Link gesendet." });
+  return json({ ok: true, requires_verification: true, message: "Bitte bestätige deine E-Mail-Adresse. Wir haben dir einen Link gesendet. Bitte prüfe auch deinen Spam-Ordner." });
 }
 
 async function signin(body: any): Promise<Response> {
