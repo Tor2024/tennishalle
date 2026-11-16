@@ -127,7 +127,9 @@ async function stats(_body: Record<string, unknown>) {
       cancelled: Number(kpi.rows[0].c_cancelled),
       utilization: util.rows[0] ? Number(util.rows[0].booked_slots) / Math.max(1, Number(util.rows[0].open_slots)) : 0,
     },
-    perDay, perMonth, perWeekday, perHour, perCourt, statuses, lead, topCustomers,
+    perDay: perDay.rows, perMonth: perMonth.rows, perWeekday: perWeekday.rows,
+    perHour: perHour.rows, perCourt: perCourt.rows, statuses: statuses.rows,
+    lead: lead.rows, topCustomers: topCustomers.rows,
   })
 }
 
@@ -151,7 +153,7 @@ async function bookings(body: Record<string, unknown>) {
 
 /* ---------- blocks (create/delete) ---------- */
 
-async function createBlock(body: Record<string, unknown>) {
+async function createBlock(body: Record<string, unknown>, user: SessionUser) {
   const courtId = typeof body.court_id === 'string' ? body.court_id : ''
   const date = typeof body.date === 'string' ? body.date : ''
   const startTime = typeof body.start_time === 'string' ? body.start_time : '06:00'
@@ -160,7 +162,6 @@ async function createBlock(body: Record<string, unknown>) {
   if (!courtId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return json({ ok: false, code: 'bad_request', message: 'Bitte alle Pflichtfelder ausfuellen.' }, 400)
   }
-  const user = arguments[2] as SessionUser
   await db().query(
     `insert into court_blocks (court_id, starts_at, ends_at, reason, created_by)
      values ($1, $2::timestamptz, $3::timestamptz, $4, $5)`,
