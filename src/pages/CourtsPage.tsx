@@ -192,15 +192,28 @@ function CourtsPage() {
   // hash navigation from Nav links (#belegung, #aktuelles, #partner, #court-list)
   const location = useLocation()
   useEffect(() => {
-    const jump = (hash: string, smooth: boolean) => {
-      if (!hash) return
-      const el = document.getElementById(hash)
-      if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
+    const hash = location.hash
+    if (!hash) return
+    const id = hash.slice(1)
+    const jump = () => {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: 'auto' })
     }
-    if (location.hash) jump(location.hash.slice(1), false)
-    const onHash = () => jump(location.hash.slice(1), true)
+    jump()
+    // sections load async (images, availability data) — layout shifts push the
+    // target down after the first jump; re-jump until the position settles
+    const iv = setInterval(jump, 250)
+    const stop = setTimeout(() => clearInterval(iv), 3000)
+    const onHash = () => {
+      const el = document.getElementById(location.hash.slice(1))
+      if (el) el.scrollIntoView({ behavior: 'smooth' })
+    }
     window.addEventListener('hashchange', onHash)
-    return () => window.removeEventListener('hashchange', onHash)
+    return () => {
+      clearInterval(iv)
+      clearTimeout(stop)
+      window.removeEventListener('hashchange', onHash)
+    }
   }, [location.hash, loaded])
 
   const summary = useMemo(() => {
