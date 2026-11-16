@@ -1,16 +1,30 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { apiData } from '../lib/api'
+import { Link, useNavigate } from 'react-router-dom'
+import { apiData, apiAuth } from '../lib/api'
 
 // structure and classes verbatim from the prod bundle (Ru footer component)
 export function Footer() {
   const [settings, setSettings] = useState<{ address?: string; contact_phone?: string; contact_email?: string } | null>(null)
+  const [authed, setAuthed] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     apiData<{ ok: boolean; settings?: { address?: string; contact_phone?: string; contact_email?: string } | null }>('bootstrap')
       .then((r) => setSettings(r.settings ?? null))
       .catch(() => {})
+    apiAuth<{ ok: boolean }>('me')
+      .then((r) => setAuthed(!!r?.ok))
+      .catch(() => {})
   }, [])
+
+  const signOut = () => {
+    apiAuth('signout', {})
+      .catch(() => {})
+      .finally(() => {
+        setAuthed(false)
+        navigate('/sign-in')
+      })
+  }
 
   return (
     <footer className="bg-background-100 border-t border-background-300/50 text-foreground-800 overflow-hidden">
@@ -36,35 +50,41 @@ export function Footer() {
           </ul>
         </div>
         <nav className="md:col-span-4 grid grid-cols-2 gap-6 text-sm">
-          <div className="flex flex-col gap-2">
-            <p className="eyebrow text-foreground-500 mb-2">Bereiche</p>
-            <Link to="/#belegung" className="hover:text-primary-500 cursor-pointer">
+          <div className="flex flex-col">
+            <p className="eyebrow text-foreground-500 mb-3">Bereiche</p>
+            <Link to="/#belegung" className="footer-link">
               Belegungsplan
             </Link>
-            <Link to="/#aktuelles" className="hover:text-primary-500 cursor-pointer">
+            <Link to="/#aktuelles" className="footer-link">
               Aktuelles
             </Link>
-            <Link to="/#partner" className="hover:text-primary-500 cursor-pointer">
+            <Link to="/#partner" className="footer-link">
               Partner
             </Link>
-            <Link to="/#court-list" className="hover:text-primary-500 cursor-pointer">
+            <Link to="/#court-list" className="footer-link">
               Plätze
             </Link>
-            <Link to="/#kontakt" className="hover:text-primary-500 cursor-pointer">
+            <Link to="/#kontakt" className="footer-link">
               Kontakt
             </Link>
           </div>
-          <div className="flex flex-col gap-2">
-            <p className="eyebrow text-foreground-500 mb-2">Konto</p>
-            <Link to="/book" className="hover:text-primary-500 cursor-pointer">
+          <div className="flex flex-col">
+            <p className="eyebrow text-foreground-500 mb-3">Konto</p>
+            <Link to="/book" className="footer-link">
               Platz buchen
             </Link>
-            <Link to="/account" className="hover:text-primary-500 cursor-pointer">
+            <Link to="/account" className="footer-link">
               Mein Konto
             </Link>
-            <Link to="/sign-in" className="hover:text-primary-500 cursor-pointer">
-              Anmelden
-            </Link>
+            {authed ? (
+              <button type="button" onClick={signOut} className="footer-link text-left cursor-pointer">
+                Abmelden
+              </button>
+            ) : (
+              <Link to="/sign-in" className="footer-link">
+                Anmelden
+              </Link>
+            )}
           </div>
         </nav>
         <div className="md:col-span-3 md:text-right">
