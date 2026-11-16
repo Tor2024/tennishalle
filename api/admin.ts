@@ -198,6 +198,114 @@ async function dayData(body: Record<string, unknown>) {
   return json({ ok: true, reservations, blocks })
 }
 
+/* ---------- courts CRUD (admin) ---------- */
+
+async function courtsList() {
+  const courts = await db().query(
+    `select c.*, v.name as venue_name,
+      (select count(*) from operating_hours oh where oh.court_id = c.id) as hours_count,
+      (select count(*) from price_zones pz where pz.court_id = c.id) as zone_count
+     from courts c join venues v on v.id = c.venue_id
+     order by c.sort_order`,
+  )
+  const venues = await db().query(`select * from venues order by sort_order`)
+  return json({ ok: true, courts: courts.rows, venues: venues.rows })
+}
+
+async function saveCourt(body: Record<string, unknown>) {
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const venueId = typeof body.venue_id === 'string' ? body.venue_id : ''
+  if (!name || !venueId) return json({ ok: false, code: 'bad_request', message: 'Name und Anlage sind Pflichtfelder.' }, 400)
+  const surface = typeof body.surface === 'string' && body.surface.trim() ? body.surface.trim() : null
+  const environment = typeof body.environment === 'string' && body.environment.trim() ? body.environment.trim() : 'Halle'
+  const courtNumber = Number.isFinite(Number(body.court_number)) && body.court_number !== '' ? Number(body.court_number) : null
+  const hourlyPrice = Number.isFinite(Number(body.hourly_price)) && body.hourly_price !== '' ? Number(body.hourly_price) : null
+  const imageUrl = typeof body.image_url === 'string' && body.image_url.trim() ? body.image_url.trim() : null
+  const isActive = body.is_active !== false
+  const sortOrder = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 99
+  const id = typeof body.id === 'string' && body.id ? body.id : null
+
+  if (id) {
+    const r = await db().query(
+      `update courts set name=$1, venue_id=$2, surface=$3, environment=$4, court_number=$5,
+        hourly_price=$6, image_url=$7, is_active=$8, sort_order=$9 where id=$10 returning id`,
+      [name, venueId, surface, environment, courtNumber, hourlyPrice, imageUrl, isActive, sortOrder, id],
+    )
+    if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Platz nicht gefunden.' }, 404)
+    return json({ ok: true, id: r.rows[0].id, message: 'Platz gespeichert.' })
+  }
+  const r = await db().query(
+    `insert into courts (id, venue_id, name, surface, environment, court_number, hourly_price, image_url, is_active, sort_order)
+     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
+    [venueId, name, surface, environment, courtNumber, hourlyPrice, imageUrl, isActive, sortOrder],
+  )
+  return json({ ok: true, id: r.rows[0].id, message: 'Platz angelegt.' })
+}
+
+async function deleteCourt(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  // courts FK: operating_hours/price_zones ON DELETE CASCADE; reservations ON DELETE RESTRICT
+  try {
+    await db().query(`delete from courts where id = $1`, [id])
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ''
+    if (msg.includes('violates foreign key')) {
+      return json({ ok: false, code: 'in_use', message: 'Platz hat Buchungen und kann nicht geloescht werden. Deaktiviere ihn stattdessen.' }, 409)
+    }
+    throw e
+  }
+  return json({ ok: true, message: 'Platz geloescht.' })
+}
+
+/* ---------- price zones CRUD (admin) ---------- */
+
+async function zonesList(body: Record<string, unknown>) {
+  const courtId = typeof body.court_id === 'string' && body.court_id ? body.court_id : null
+  const rows = courtId
+    ? await db().query(`select * from price_zones where court_id = $1 order by sort_order, start_time`, [courtId])
+    : await db().query(`select pz.*, c.name as court_name from price_zones pz join courts c on c.id = pz.court_id order by c.sort_order, pz.sort_order`)
+  return json({ ok: true, zones: rows.rows })
+}
+
+async function saveZone(body: Record<string, unknown>) {
+  const courtId = typeof body.court_id === 'string' ? body.court_id : ''
+  const startTime = typeof body.start_time === 'string' ? body.start_time : ''
+  const endTime = typeof body.end_time === 'string' ? body.end_time : ''
+  const priceCents = Number(body.price_cents)
+  const weekdays = Array.isArray(body.weekdays) ? body.weekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6) : []
+  if (!courtId || !/^\d{2}:\d{2}/.test(startTime) || !/^\d{2}:\d{2}/.test(endTime) || !Number.isFinite(priceCents) || priceCents <= 0 || !weekdays.length) {
+    return json({ ok: false, code: 'bad_request', message: 'Bitte alle Pflichtfelder ausfuellen (Platz, Zeitraum, Preis, Wochentage).' }, 400)
+  }
+  const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : 'Zone'
+  const sortOrder = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0
+  const id = typeof body.id === 'string' && body.id ? body.id : null
+  const st = `${startTime.slice(0, 5)}:00`
+  const et = `${endTime.slice(0, 5)}:00`
+
+  if (id) {
+    const r = await db().query(
+      `update price_zones set court_id=$1, label=$2, weekdays=$3, start_time=$4, end_time=$5, price_cents=$6, sort_order=$7 where id=$8 returning id`,
+      [courtId, label, weekdays, st, et, Math.round(priceCents), sortOrder, id],
+    )
+    if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Zone nicht gefunden.' }, 404)
+    return json({ ok: true, id: r.rows[0].id, message: 'Zone gespeichert.' })
+  }
+  const r = await db().query(
+    `insert into price_zones (court_id, label, weekdays, start_time, end_time, price_cents, sort_order)
+     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+    [courtId, label, weekdays, st, et, Math.round(priceCents), sortOrder],
+  )
+  return json({ ok: true, id: r.rows[0].id, message: 'Zone angelegt.' })
+}
+
+async function deleteZone(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  await db().query(`delete from price_zones where id = $1`, [id])
+  return json({ ok: true, message: 'Zone geloescht.' })
+}
+
 export async function POST(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return json({}, 200)
   try {
@@ -217,6 +325,12 @@ export async function POST(req: Request): Promise<Response> {
       case 'create_block': return await createBlock(body, auth.user)
       case 'delete_block': return await deleteBlock(body)
       case 'day_data': return await dayData(body)
+      case 'courts': return await courtsList()
+      case 'save_court': return await saveCourt(body)
+      case 'delete_court': return await deleteCourt(body)
+      case 'zones': return await zonesList(body)
+      case 'save_zone': return await saveZone(body)
+      case 'delete_zone': return await deleteZone(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {

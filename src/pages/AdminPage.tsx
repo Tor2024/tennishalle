@@ -31,6 +31,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const TABS = [
   { id: 'overview', label: 'Übersicht', icon: 'ri-dashboard-line' },
+  { id: 'courts', label: 'Plätze', icon: 'ri-layout-grid-line' },
   { id: 'calendar', label: 'Kalender', icon: 'ri-calendar-2-line' },
   { id: 'bookings', label: 'Buchungen', icon: 'ri-list-check-2' },
 ] as const
@@ -411,6 +412,346 @@ function OverviewTab({ catalog }: { catalog: Catalog }) {
             {stats.topCustomers.length === 0 && <li className="py-3 text-[13px] text-foreground-600">Noch keine Kunden.</li>}
           </ul>
         </Panel>
+      </div>
+    </div>
+  )
+}
+
+/* ---------- tab: Plätze (courts CRUD + price zones, double confirmation) ---------- */
+
+const WD_FULL = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+
+interface AdminCourt extends Court {
+  venue_name?: string
+  hours_count?: number
+  zone_count?: number
+}
+interface Zone {
+  id: string
+  court_id: string
+  label: string
+  weekdays: number[]
+  start_time: string
+  end_time: string
+  price_cents: number
+  sort_order: number
+}
+
+const ADMIN_FIELD_CLS =
+  'mt-2 w-full box-border bg-foreground-950/[0.04] border border-foreground-950/15 rounded-md px-3 py-2.5 text-[14px] text-foreground-950 placeholder:text-foreground-500 transition-colors focus:outline-none focus:bg-foreground-950/[0.06] focus:border-primary-500'
+
+// double-confirmation button: first click arms it, second click within 4s confirms
+function ConfirmButton({ label, confirmLabel, onConfirm, cls, busy }: { label: string; confirmLabel: string; onConfirm: () => void; cls: string; busy?: boolean }) {
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    if (!armed) return
+    const t = setTimeout(() => setArmed(false), 4000)
+    return () => clearTimeout(t)
+  }, [armed])
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => {
+        if (!armed) { setArmed(true); return }
+        setArmed(false)
+        onConfirm()
+      }}
+      className={`${cls} ${armed ? 'bg-red-500/90 border-red-500 text-white' : ''} disabled:opacity-50 cursor-pointer transition-colors`}
+    >
+      {armed ? confirmLabel : label}
+    </button>
+  )
+}
+
+function CourtsTab({ catalog, onCatalogReload }: { catalog: Catalog; onCatalogReload: () => void }) {
+  const [courts, setCourts] = useState<AdminCourt[]>([])
+  const [venues, setVenues] = useState<Venue[]>([])
+  const [zones, setZones] = useState<Zone[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState<AdminCourt | 'new' | null>(null)
+  const [zoneCourt, setZoneCourt] = useState<string | null>(null) // court whose zones panel is open
+  const [editingZone, setEditingZone] = useState<Zone | 'new' | null>(null)
+
+  const load = async () => {
+    setError('')
+    try {
+      const r = await apiAdmin<{ ok: boolean; courts: AdminCourt[]; venues: Venue[] }>('courts', {})
+      const z = await apiAdmin<{ ok: boolean; zones: Zone[] }>('zones', {})
+      if (r.ok) setCourts(r.courts)
+      if (z.ok) setZones(z.zones)
+    } catch {
+      setError('Netzwerkfehler. Bitte erneut versuchen.')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { load() }, [])
+
+  const courtZones = (courtId: string) => zones.filter((z) => z.court_id === courtId)
+
+  const zoneLabel = (z: Zone) => `${z.label}: ${WD_FULL.filter((_, i) => z.weekdays.includes(i)).join(', ') || '—'} ${z.start_time.slice(0, 5)}–${z.end_time.slice(0, 5)} · ${(z.price_cents / 100).toFixed(2).replace('.', ',')} €`
+
+  return (
+    <div>
+      {error && (
+        <p className="mb-5 rounded-md border border-red-400/40 bg-red-400/10 px-4 py-3 text-[14px] text-red-300 flex items-center justify-between gap-3">
+          {error}
+          <button onClick={() => { setLoading(true); load() }} className="underline underline-offset-4 cursor-pointer">Erneut versuchen</button>
+        </p>
+      )}
+      {message && <p className="mb-5 rounded-md border border-primary-500/40 bg-primary-500/10 px-4 py-3 text-[14px] text-primary-400">{message}</p>}
+
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <p className="ro-body text-foreground-700">{courts.length} Plätze · Preise pro Zeitzone frei definierbar</p>
+        <button
+          onClick={() => setEditing('new')}
+          className="h-10 inline-flex items-center gap-2 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 cursor-pointer"
+        >
+          <i className="ri-add-line" />Platz hinzufügen
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="ro-body text-foreground-600 py-10">Wird geladen…</p>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {courts.map((c) => (
+            <div key={c.id} className="ro-card p-5">
+              <div className="flex gap-4">
+                {c.image_url && <img src={c.image_url} alt="" className="w-24 h-24 rounded-lg object-cover ro-frame shrink-0" />}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="ro-eyebrow text-foreground-600">{c.venue_name ?? '—'} · Nr. {c.court_number ?? '—'}</p>
+                      <p className="ro-card-title ro-grad-lime">{c.name}</p>
+                    </div>
+                    <span className={`h-7 px-3 inline-flex items-center rounded-full text-[11px] font-semibold ${c.is_active ? 'bg-primary-500/15 text-primary-400' : 'bg-foreground-950/[0.06] text-foreground-500'}`}>
+                      {c.is_active ? 'Aktiv' : 'Inaktiv'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[13px] text-foreground-700">
+                    {c.environment ?? 'Halle'} · {c.surface ?? '—'} · {c.hourly_price != null ? `${Number(c.hourly_price).toFixed(2).replace('.', ',')} € / Std.` : 'keine Preisangabe'} · {c.hours_count ?? 0} Öffnungszeiten · {c.zone_count ?? courtZones(c.id).length} Preiszonen
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button onClick={() => setEditing(c)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
+                      <i className="ri-edit-line mr-1" />Bearbeiten
+                    </button>
+                    <button onClick={() => setZoneCourt(zoneCourt === c.id ? null : c.id)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
+                      <i className="ri-price-tag-3-line mr-1" />Preiszonen ({courtZones(c.id).length})
+                    </button>
+                    <ConfirmButton
+                      label="Löschen"
+                      confirmLabel="Wirklich löschen?"
+                      cls="h-9 px-4 rounded-full border border-red-400/40 text-red-300 text-[13px] font-medium hover:bg-red-500/10"
+                      onConfirm={async () => {
+                        const r = await apiAdmin<{ ok: boolean; message?: string }>('delete_court', { id: c.id })
+                        setMessage(r.ok ? `${c.name} gelöscht.` : r.message ?? 'Fehler')
+                        await load()
+                        onCatalogReload()
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {zoneCourt === c.id && (
+                <div className="mt-5 pt-5 border-t border-foreground-950/10">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className="ro-eyebrow text-foreground-600">Preiszonen · {c.name}</p>
+                    <button onClick={() => setEditingZone('new')} className="h-8 px-3 rounded-full bg-primary-500 text-background-50 text-[12px] font-medium hover:bg-primary-400 cursor-pointer">
+                      <i className="ri-add-line" />Zone
+                    </button>
+                  </div>
+                  {courtZones(c.id).length === 0 ? (
+                    <p className="text-[13px] text-foreground-500 py-2">Noch keine Zonen — Gäste zahlen den Stundenpreis.</p>
+                  ) : (
+                    <ul className="divide-y divide-foreground-950/[0.07]">
+                      {courtZones(c.id).map((z) => (
+                        <li key={z.id} className="py-2.5 flex items-center justify-between gap-3 text-[13px]">
+                          <span className="text-foreground-800">{zoneLabel(z)}</span>
+                          <span className="flex gap-2 shrink-0">
+                            <button onClick={() => setEditingZone(z)} className="text-foreground-600 hover:text-primary-500 cursor-pointer" aria-label="Zone bearbeiten"><i className="ri-edit-line" /></button>
+                            <ConfirmButton
+                              label=""
+                              confirmLabel="?"
+                              cls="text-red-300 hover:text-red-400 text-[13px]"
+                              onConfirm={async () => {
+                                await apiAdmin('delete_zone', { id: z.id })
+                                setMessage('Zone gelöscht.')
+                                await load()
+                              }}
+                            />
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing && <CourtModal court={editing === 'new' ? null : editing} venues={venues} onClose={() => setEditing(null)} onSaved={(msg) => { setEditing(null); setMessage(msg); load(); onCatalogReload() }} />}
+      {editingZone && zoneCourt && <ZoneModal zone={editingZone === 'new' ? null : editingZone} courtId={zoneCourt} courts={courts} onClose={() => setEditingZone(null)} onSaved={(msg) => { setEditingZone(null); setMessage(msg); load() }} />}
+    </div>
+  )
+}
+
+function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {
+  const [form, setForm] = useState({
+    name: court?.name ?? '',
+    venue_id: court?.venue_id ?? venues[0]?.id ?? '',
+    surface: court?.surface ?? '',
+    environment: court?.environment ?? 'Halle',
+    court_number: court?.court_number != null ? String(court.court_number) : '',
+    hourly_price: court?.hourly_price != null ? String(court.hourly_price) : '',
+    image_url: court?.image_url ?? '',
+    is_active: court?.is_active ?? true,
+    sort_order: court?.sort_order != null ? String(court.sort_order) : '99',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">{court ? 'Platz bearbeiten' : 'Neuer Platz'}</p>
+        <h3 className="mt-2 ro-card-title">{court ? court.name : 'Platz hinzufügen'}</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Name *</span>
+          <input value={form.name} onChange={(e) => set('name', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Platz 1" /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Anlage *</span>
+          <select value={form.venue_id} onChange={(e) => set('venue_id', e.target.value)} className={ADMIN_FIELD_CLS}>
+            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select></label>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <label className="block"><span className="ro-eyebrow text-foreground-600">Umgebung</span>
+            <select value={form.environment} onChange={(e) => set('environment', e.target.value)} className={ADMIN_FIELD_CLS}>
+              <option value="Halle">Halle</option>
+              <option value="Außenplatz">Außenplatz</option>
+            </select></label>
+          <label className="block"><span className="ro-eyebrow text-foreground-600">Belag</span>
+            <input value={form.surface} onChange={(e) => set('surface', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Rebound Ace" /></label>
+          <label className="block"><span className="ro-eyebrow text-foreground-600">Platz-Nr.</span>
+            <input type="number" value={form.court_number} onChange={(e) => set('court_number', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
+          <label className="block"><span className="ro-eyebrow text-foreground-600">Std-Preis (€)</span>
+            <input type="number" step="0.01" value={form.hourly_price} onChange={(e) => set('hourly_price', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="22" /></label>
+        </div>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Bild-URL</span>
+          <input value={form.image_url} onChange={(e) => set('image_url', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="/assets/img/… oder https://…" /></label>
+        {form.image_url && <img src={form.image_url} alt="" className="mt-3 h-32 w-full object-cover rounded-lg ro-frame" />}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
+            <input type="checkbox" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} className="accent-[var(--color-primary-500)]" />
+            Aktiv (sichtbar auf der Website)
+          </label>
+          <label className="flex items-center gap-2 text-[13px] text-foreground-700">Sortierung
+            <input type="number" value={form.sort_order} onChange={(e) => set('sort_order', e.target.value)} className="w-20 mt-0 bg-foreground-950/[0.04] border border-foreground-950/15 rounded-md px-2 py-1.5 text-[14px] focus:outline-none focus:border-primary-500" /></label>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
+          <ConfirmButton
+            label={court ? 'Speichern' : 'Anlegen'}
+            confirmLabel={court ? 'Wirklich speichern?' : 'Wirklich anlegen?'}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 border border-primary-500"
+            busy={busy}
+            onConfirm={async () => {
+              setBusy(true); setError('')
+              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_court', { ...form, id: court?.id })
+              setBusy(false)
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              else setError(r.message ?? 'Fehler')
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ZoneModal({ zone, courtId, courts, onClose, onSaved }: { zone: Zone | null; courtId: string; courts: AdminCourt[]; onClose: () => void; onSaved: (msg: string) => void }) {
+  const [form, setForm] = useState({
+    court_id: zone?.court_id ?? courtId,
+    label: zone?.label ?? '',
+    start_time: zone?.start_time.slice(0, 5) ?? '06:00',
+    end_time: zone?.end_time.slice(0, 5) ?? '23:30',
+    price_eur: zone ? String(zone.price_cents / 100) : '',
+  })
+  const [weekdays, setWeekdays] = useState<number[]>(zone?.weekdays ?? [0, 1, 2, 3, 4, 5, 6])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const toggleDay = (d: number) => setWeekdays((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort()))
+  const setTimePreset = (mins: number) => setForm((f) => ({ ...f, end_time: String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0') }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">{zone ? 'Zone bearbeiten' : 'Neue Zone'}</p>
+        <h3 className="mt-2 ro-card-title">Preis pro Zeitraum</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Platz</span>
+          <select value={form.court_id} onChange={(e) => setForm((f) => ({ ...f, court_id: e.target.value }))} className={ADMIN_FIELD_CLS}>
+            {courts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Bezeichnung</span>
+          <input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} className={ADMIN_FIELD_CLS} placeholder="Werktag Abend" /></label>
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <label className="block"><span className="ro-eyebrow text-foreground-600">Von</span>
+            <input type="time" value={form.start_time} onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))} className={ADMIN_FIELD_CLS} /></label>
+          <label className="block"><span className="ro-eyebrow text-foreground-600">Bis</span>
+            <input type="time" value={form.end_time} onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))} className={ADMIN_FIELD_CLS} /></label>
+          <label className="block"><span className="ro-eyebrow text-foreground-600">€ / Stunde</span>
+            <input type="number" step="0.01" min="0" value={form.price_eur} onChange={(e) => setForm((f) => ({ ...f, price_eur: e.target.value }))} className={ADMIN_FIELD_CLS} placeholder="22" /></label>
+        </div>
+        <p className="mt-2 text-[12px] text-foreground-600">Freies Zeitfenster — nicht auf 30-Min-Raster beschränkt.</p>
+        <p className="mt-4 ro-eyebrow text-foreground-600">Wochentage</p>
+        <div className="mt-2 flex gap-1.5">
+          {WD_FULL.map((d, i) => (
+            <button key={i} type="button" onClick={() => toggleDay(i)}
+              className={`w-9 h-9 rounded-full text-[12px] font-semibold cursor-pointer border transition-colors ${weekdays.includes(i) ? 'bg-primary-500 border-primary-500 text-background-50' : 'border-foreground-950/20 text-foreground-700 hover:border-primary-500/60'}`}>
+              {d}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[30, 60, 90, 120].map((m) => (
+            <button key={m} type="button" onClick={() => setTimePreset(m)}
+              className="h-7 px-3 rounded-full border border-foreground-950/15 text-[11px] text-foreground-600 hover:border-primary-500/60 cursor-pointer">
+              {m} min
+            </button>
+          ))}
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
+          <ConfirmButton
+            label={zone ? 'Speichern' : 'Anlegen'}
+            confirmLabel={zone ? 'Wirklich speichern?' : 'Wirklich anlegen?'}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 border border-primary-500"
+            busy={busy}
+            onConfirm={async () => {
+              setBusy(true); setError('')
+              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_zone', {
+                id: zone?.id,
+                court_id: form.court_id,
+                label: form.label,
+                weekdays,
+                start_time: form.start_time,
+                end_time: form.end_time,
+                price_cents: Math.round(Number(form.price_eur) * 100),
+              })
+              setBusy(false)
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              else setError(r.message ?? 'Fehler')
+            }}
+          />
+        </div>
       </div>
     </div>
   )
@@ -813,6 +1154,7 @@ export function AdminPage() {
 
         <main className="px-4 md:px-10 py-6 md:py-10">
           {tab === 'overview' && <OverviewTab catalog={catalog} />}
+          {tab === 'courts' && <CourtsTab catalog={catalog} onCatalogReload={() => getBootstrap().then(setCatalog).catch(() => {})} />}
           {tab === 'calendar' && <CalendarTab catalog={catalog} />}
           {tab === 'bookings' && <BookingsTab catalog={catalog} />}
         </main>
