@@ -480,7 +480,7 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
     try {
       const r = await apiAdmin<{ ok: boolean; courts: AdminCourt[]; venues: Venue[] }>('courts', {})
       const z = await apiAdmin<{ ok: boolean; zones: Zone[] }>('zones', {})
-      if (r.ok) setCourts(r.courts)
+      if (r.ok) { setCourts(r.courts); setVenues(r.venues) }
       if (z.ok) setZones(z.zones)
     } catch {
       setError('Netzwerkfehler. Bitte erneut versuchen.')
