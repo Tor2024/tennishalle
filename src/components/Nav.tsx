@@ -1,6 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiAuth } from '../lib/api'
+
+function NavLink({ to, active, children }: { to: string; active: boolean; children: ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className={`relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors after:absolute after:left-0 after:right-[0.22em] after:-bottom-0.5 after:h-px after:bg-primary-500 after:transition-transform after:origin-left ${
+        active ? 'text-foreground-950 after:scale-x-100' : 'text-foreground-800 hover:text-foreground-950 after:scale-x-0 hover:after:scale-x-100'
+      }`}
+    >
+      {children}
+    </Link>
+  )
+}
 
 export function Nav() {
   const [solid, setSolid] = useState(false)
@@ -34,7 +47,6 @@ export function Nav() {
       return
     }
     const ids = ['belegung', 'aktuelles', 'partner', 'court-list', 'kontakt']
-    let t: ReturnType<typeof setTimeout> | undefined
     const compute = () => {
       let current = ''
       const line = window.innerHeight * 0.35
@@ -45,16 +57,12 @@ export function Nav() {
       }
       setActiveSection(current)
     }
-    // setTimeout throttle (not rAF): rAF is paused in background tabs, which broke automated tests
-    const onScroll = () => {
-      clearTimeout(t)
-      t = setTimeout(compute, 100)
-    }
+    // no throttle: compute is cheap (5 getElementById), and timers get throttled in hidden tabs
+    const onScroll = () => compute()
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
     compute()
     return () => {
-      clearTimeout(t)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
     }
@@ -74,19 +82,6 @@ export function Nav() {
     { to: '/#court-list', label: 'Plätze' },
     { to: '/#kontakt', label: 'Kontakt' },
   ]
-
-function NavLink({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      to={to}
-      className={`relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors after:absolute after:left-0 after:right-[0.22em] after:-bottom-0.5 after:h-px after:bg-primary-500 after:transition-transform after:origin-left ${
-        active ? 'text-foreground-950 after:scale-x-100' : 'text-foreground-800 hover:text-foreground-950 after:scale-x-0 hover:after:scale-x-100'
-      }`}
-    >
-      {children}
-    </Link>
-  )
-}
 
   return (
     <header
