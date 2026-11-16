@@ -34,6 +34,7 @@ const TABS = [
   { id: 'courts', label: 'Plätze', icon: 'ri-layout-grid-line' },
   { id: 'calendar', label: 'Kalender', icon: 'ri-calendar-2-line' },
   { id: 'bookings', label: 'Buchungen', icon: 'ri-list-check-2' },
+{ id: 'partners', label: 'Partner', icon: 'ri-hand-heart-line' },
 ] as const
 
 interface Catalog {
@@ -629,6 +630,153 @@ async function fileToUploadData(file: File, maxWidth: number): Promise<{ filenam
   return { filename: name, data: dataUrl }
 }
 
+// ---------- partners tab ----------
+interface AdminPartner { id: string; name: string; link: string | null; logo_path: string | null; sort_order: number; is_active: boolean }
+
+function PartnersTab() {
+  const [partners, setPartners] = useState<AdminPartner[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState<AdminPartner | null | 'new'>(null)
+
+  const load = () => {
+    setLoading(true)
+    apiAdmin<{ ok: boolean; partners?: AdminPartner[]; message?: string }>('partners')
+      .then((r) => {
+        if (r.ok && r.partners) setPartners(r.partners)
+        else setError(r.message ?? 'Fehler beim Laden.')
+      })
+      .catch(() => setError('Netzwerkfehler.'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="ro-h2 !text-[28px]">Partner</h1>
+        <button onClick={() => setEditing('new')} className="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 cursor-pointer">
+          <i className="ri-add-line" />Partner
+        </button>
+      </div>
+      {message && <p className="mt-4 rounded-md border border-primary-500/40 bg-primary-500/10 px-4 py-3 text-[14px] text-primary-400">{message}</p>}
+      {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-4 py-3 text-[14px] text-red-300">{error}</p>}
+      {loading ? (
+        <p className="mt-8 text-[14px] text-foreground-600">Partner werden geladen…</p>
+      ) : partners.length === 0 ? (
+        <p className="mt-8 text-[14px] text-foreground-600">Noch keine Partner angelegt.</p>
+      ) : (
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {partners.map((p) => (
+            <div key={p.id} className={`ro-card p-5 flex gap-4 items-start ${p.is_active ? '' : 'opacity-50'}`}>
+              {p.logo_path ? (
+                <img src={p.logo_path} alt="" className="w-14 h-14 rounded-lg object-cover ro-frame shrink-0" />
+              ) : (
+                <span className="w-14 h-14 rounded-lg bg-primary-500/15 text-primary-500 flex items-center justify-center shrink-0"><i className="ri-award-line text-xl" /></span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="ro-card-title !text-[16px] truncate">{p.name}</p>
+                {p.link && <p className="text-[12px] text-foreground-600 truncate mt-0.5">{p.link}</p>}
+                <p className="text-[11px] text-foreground-500 mt-0.5">Sortierung {p.sort_order}</p>
+                <div className="mt-3 flex gap-2">
+                  <button onClick={() => setEditing(p)} className="h-8 px-3 rounded-full border border-foreground-950/20 text-[12px] hover:border-primary-500/60 cursor-pointer"><i className="ri-edit-line" />Bearbeiten</button>
+                  <ConfirmButton
+                    label="Löschen"
+                    confirmLabel="Wirklich löschen?"
+                    cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60"
+                    onConfirm={async () => {
+                      const r = await apiAdmin<{ ok: boolean; message?: string }>('delete_partner', { id: p.id })
+                      setMessage(r.ok ? r.message ?? 'Partner geloescht.' : r.message ?? 'Fehler')
+                      await load()
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing && <PartnerModal partner={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(msg) => { setMessage(msg); setEditing(null); load() }} />}
+    </div>
+  )
+}
+
+function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | null; onClose: () => void; onSaved: (msg: string) => void }) {
+  const [form, setForm] = useState({
+    name: partner?.name ?? '',
+    link: partner?.link ?? '',
+    logo_path: partner?.logo_path ?? '',
+    is_active: partner?.is_active ?? true,
+    sort_order: partner?.sort_order != null ? String(partner.sort_order) : '99',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  const onFile = async (file: File) => {
+    if (!file) return
+    setError('')
+    setUploading(true)
+    try {
+      const { filename, data } = await fileToUploadData(file, 520)
+      const r = await apiAdmin<{ ok: boolean; path?: string; message?: string }>('upload_image', { filename, data })
+      if (r.ok && r.path) set('logo_path', r.path)
+      else setError(r.message ?? 'Upload fehlgeschlagen.')
+    } catch {
+      setError('Upload fehlgeschlagen.')
+    }
+    setUploading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">{partner ? 'Partner bearbeiten' : 'Neuer Partner'}</p>
+        <h3 className="mt-2 ro-card-title">{partner ? partner.name : 'Partner hinzufügen'}</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Name *</span>
+          <input value={form.name} onChange={(e) => set('name', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Partner Eins" /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Link (optional)</span>
+          <input value={form.link} onChange={(e) => set('link', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="https://…" /></label>
+        <div className="mt-4 flex items-center gap-3">
+          <label className={`inline-flex h-9 items-center gap-2 rounded-full border border-foreground-950/20 px-4 text-[12px] font-medium cursor-pointer hover:border-primary-500/60 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+            {uploading ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-upload-2-line" />}
+            {uploading ? 'Wird hochgeladen…' : 'Logo hochladen'}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
+          </label>
+          {form.logo_path && <img src={form.logo_path} alt="" className="w-12 h-12 rounded-lg object-cover ro-frame" />}
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
+            <input type="checkbox" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} className="accent-[var(--color-primary-500)]" />
+            Aktiv (sichtbar auf der Website)
+          </label>
+          <label className="flex items-center gap-2 text-[13px] text-foreground-700">Sortierung
+            <input type="number" value={form.sort_order} onChange={(e) => set('sort_order', e.target.value)} className="w-20 mt-0 bg-foreground-950/[0.04] border border-foreground-950/15 rounded-md px-2 py-1.5 text-[14px] focus:outline-none focus:border-primary-500" /></label>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
+          <ConfirmButton
+            label={partner ? 'Speichern' : 'Anlegen'}
+            confirmLabel={partner ? 'Wirklich speichern?' : 'Wirklich anlegen?'}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 border border-primary-500"
+            busy={busy}
+            onConfirm={async () => {
+              setBusy(true); setError('')
+              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_partner', { ...form, id: partner?.id })
+              setBusy(false)
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              else setError(r.message ?? 'Fehler')
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {
   const [form, setForm] = useState({
     name: court?.name ?? '',
@@ -1207,6 +1355,7 @@ export function AdminPage() {
           {tab === 'overview' && <OverviewTab catalog={catalog} />}
           {tab === 'courts' && <CourtsTab catalog={catalog} onCatalogReload={() => getBootstrap().then(setCatalog).catch(() => {})} />}          {tab === 'calendar' && <CalendarTab catalog={catalog} />}
           {tab === 'bookings' && <BookingsTab catalog={catalog} />}
+{tab === 'partners' && <PartnersTab />}
         </main>
       </div>
     </div>

@@ -18,6 +18,7 @@ export async function POST(req: Request): Promise<Response> {
     const body = await req.json();
 
     if (body.action === "bootstrap") return await bootstrap();
+    if (body.action === "partners") return await partners();
     if (body.action === "court_blocks") return await courtBlocks(body);
     if (body.action === "track") return await track(body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
@@ -48,6 +49,11 @@ async function bootstrap(): Promise<Response> {
 }
 
 /** Блокировки кортов на дату (YYYY-MM-DD, Berlin). */
+async function partners(): Promise<Response> {
+  const r = await db().query(`select id, name, link, logo_path, is_active from partners where is_active = true order by sort_order`);
+  return json({ ok: true, partners: r.rows });
+}
+
 async function courtBlocks(body: any): Promise<Response> {
   const { date } = body;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))

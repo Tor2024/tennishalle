@@ -306,6 +306,34 @@ async function deleteZone(body: Record<string, unknown>) {
   return json({ ok: true, message: 'Zone geloescht.' })
 }
 
+// ---------- partners ----------
+async function partnersList() {
+  const r = await db().query(`select id, name, link, logo_path, sort_order, is_active from partners order by sort_order`)
+  return json({ ok: true, partners: r.rows })
+}
+
+async function savePartner(body: Record<string, unknown>) {
+  const name = String(body.name ?? '').trim()
+  if (!name) return json({ ok: false, code: 'bad_request', message: 'Name fehlt.' }, 400)
+  const link = String(body.link ?? '').trim() || null
+  const logoPath = String(body.logo_path ?? '').trim() || null
+  const isActive = body.is_active !== false
+  const sortOrder = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 99
+  if (typeof body.id === 'string' && body.id) {
+    await db().query(`update partners set name=$1, link=$2, logo_path=$3, is_active=$4, sort_order=$5 where id=$6`, [name, link, logoPath, isActive, sortOrder, body.id])
+    return json({ ok: true, message: 'Partner gespeichert.' })
+  }
+  await db().query(`insert into partners (id, name, link, logo_path, sort_order, is_active) values (gen_random_uuid(), $1, $2, $3, $4, $5)`, [name, link, logoPath, sortOrder, isActive])
+  return json({ ok: true, message: 'Partner angelegt.' })
+}
+
+async function deletePartner(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  await db().query(`delete from partners where id = $1`, [id])
+  return json({ ok: true, message: 'Partner geloescht.' })
+}
+
 // image upload: commits file to GitHub repo (Tor2024/tennishalle) -> auto redeploy -> served as /img/<name>
 const GH_REPO = 'Tor2024/tennishalle'
 const GH_BRANCH = 'main'
@@ -399,6 +427,9 @@ export async function POST(req: Request): Promise<Response> {
       case 'delete_zone': return await deleteZone(body)
       case 'upload_image': return await uploadImage(body)
       case 'delete_image': return await deleteImage(body)
+      case 'partners': return await partnersList()
+      case 'save_partner': return await savePartner(body)
+      case 'delete_partner': return await deletePartner(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {

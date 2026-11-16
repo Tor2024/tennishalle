@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Reveal } from './Reveal'
+import { apiData } from '../lib/api'
 
-const PARTNERS = [
+const FALLBACK = [
   { icon: 'ri-award-line', name: 'Partner Eins' },
   { icon: 'ri-shield-star-line', name: 'Partner Zwei' },
   { icon: 'ri-flashlight-line', name: 'Partner Drei' },
@@ -10,17 +11,46 @@ const PARTNERS = [
   { icon: 'ri-vip-crown-line', name: 'Partner Sechs' },
 ]
 
+interface DbPartner { id: string; name: string; link: string | null; logo_path: string | null; is_active: boolean }
+
 // structure verbatim from prod bundle home.js (#partner template), marquee pause on hover
+// partners come from DB (admin-managed); icon fallback while DB has no logo
 export function Partner() {
   const [paused, setPaused] = useState(false)
+  const [partners, setPartners] = useState<DbPartner[] | null>(null)
 
-  const chips = (ariaHidden: boolean) =>
-    PARTNERS.map((p) => (
-      <span key={(ariaHidden ? 'd-' : '') + p.name} className="hm-partner-chip" aria-hidden={ariaHidden || undefined}>
-        <i className={`${p.icon} text-xl text-primary-500`} />
-        <span>{p.name}</span>
-      </span>
-    ))
+  useEffect(() => {
+    apiData<{ ok: boolean; partners?: DbPartner[] }>('partners')
+      .then((r) => setPartners(r.ok && r.partners?.length ? r.partners : null))
+      .catch(() => {})
+  }, [])
+
+  const items: { key: string; icon?: string; name: string; link?: string | null; logo?: string | null }[] = partners
+    ? partners.map((p) => ({ key: p.id, icon: 'ri-award-line', name: p.name, link: p.link, logo: p.logo_path }))
+    : FALLBACK.map((p) => ({ key: p.name, icon: p.icon, name: p.name }))
+
+  const chip = (ariaHidden: boolean) =>
+    items.map((p) => {
+      const inner = (
+        <>
+          {p.logo ? (
+            <img src={p.logo} alt="" className="w-8 h-8 rounded-md object-cover" />
+          ) : (
+            <i className={`${p.icon} text-xl text-primary-500`} />
+          )}
+          <span>{p.name}</span>
+        </>
+      )
+      return p.link ? (
+        <a key={(ariaHidden ? 'd-' : '') + p.key} href={p.link} target="_blank" rel="noreferrer" className="hm-partner-chip" aria-hidden={ariaHidden || undefined}>
+          {inner}
+        </a>
+      ) : (
+        <span key={(ariaHidden ? 'd-' : '') + p.key} className="hm-partner-chip" aria-hidden={ariaHidden || undefined}>
+          {inner}
+        </span>
+      )
+    })
 
   return (
     <section id="partner" className="hm-section hm-partner-section scroll-mt-20" aria-labelledby="partner-title">
@@ -39,8 +69,8 @@ export function Partner() {
           onMouseLeave={() => setPaused(false)}
         >
           <div className="hm-marquee-track">
-            {chips(false)}
-            {chips(true)}
+            {chip(false)}
+            {chip(true)}
           </div>
         </div>
       </div>
