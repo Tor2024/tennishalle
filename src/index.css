@@ -127,6 +127,7 @@
   letter-spacing: -0.015em;
   margin-left: auto;
   margin-right: auto;
+  pointer-events: none;
 }
 
 html {
