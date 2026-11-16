@@ -21,8 +21,8 @@ export async function GET(req: Request): Promise<Response> {
 
     const tokenHash = await sha256Hex(token);
     const p = db();
-    const res = await p.query<{ id: string; user_id: string }>(
-      `select id, user_id from email_verification_tokens where token_hash = $1 and expires_at > now()`,
+    const res = await p.query<{ user_id: string }>(
+      `select user_id from email_verification_tokens where token_hash = $1 and expires_at > now()`,
       [tokenHash],
     );
     if (res.rows.length === 0) return Redirect("/sign-in?verify_error=invalid_token");
