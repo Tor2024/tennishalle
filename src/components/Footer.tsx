@@ -37,21 +37,30 @@ export function Footer() {
         </div>
         <nav className="md:col-span-4 grid grid-cols-2 gap-6 text-sm">
           <div className="flex flex-col gap-2">
-            <p className="eyebrow text-foreground-500 mb-2">Spielen</p>
-            <Link to="/book" className="hover:text-primary-500 cursor-pointer">
-              Platz buchen
+            <p className="eyebrow text-foreground-500 mb-2">Bereiche</p>
+            <Link to="/#belegung" className="hover:text-primary-500 cursor-pointer">
+              Belegungsplan
             </Link>
-            <Link to="/" className="hover:text-primary-500 cursor-pointer">
+            <Link to="/#aktuelles" className="hover:text-primary-500 cursor-pointer">
+              Aktuelles
+            </Link>
+            <Link to="/#partner" className="hover:text-primary-500 cursor-pointer">
+              Partner
+            </Link>
+            <Link to="/#court-list" className="hover:text-primary-500 cursor-pointer">
               Plätze
             </Link>
-            <Link to="/account" className="hover:text-primary-500 cursor-pointer">
-              Meine Buchungen
+            <Link to="/#kontakt" className="hover:text-primary-500 cursor-pointer">
+              Kontakt
             </Link>
           </div>
           <div className="flex flex-col gap-2">
-            <p className="eyebrow text-foreground-500 mb-2">Verein</p>
-            <Link to="/" className="hover:text-primary-500 cursor-pointer">
-              Start
+            <p className="eyebrow text-foreground-500 mb-2">Konto</p>
+            <Link to="/book" className="hover:text-primary-500 cursor-pointer">
+              Platz buchen
+            </Link>
+            <Link to="/account" className="hover:text-primary-500 cursor-pointer">
+              Mein Konto
             </Link>
             <Link to="/sign-in" className="hover:text-primary-500 cursor-pointer">
               Anmelden
