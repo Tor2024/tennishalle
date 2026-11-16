@@ -1,0 +1,14 @@
+{
+  "name": "TENNISHALLE",
+  "short_name": "Tennishalle",
+  "description": "Tennisplätze online buchen — Live-Verfügbarkeit in 30-Minuten-Schritten",
+  "lang": "de",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b120c",
+  "theme_color": "#0b120c",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/assets/favicon.svg", "type": "image/svg+xml" }
+  ]
+}
