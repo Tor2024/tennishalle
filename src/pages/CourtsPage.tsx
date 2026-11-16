@@ -172,34 +172,6 @@ const DETAILS = [
   '/assets/img/gen-02-moody-editorial-close-up-of-a-fluorescen.webp',
 ]
 
-// hardcoded outdoor courts (BД без колонки environment — визуал только на странице)
-const OUTDOOR_COURTS: Court[] = [
-  {
-    id: 'outdoor-3',
-    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
-    name: 'Platz 3',
-    surface: 'Sand',
-    environment: 'Außenplatz',
-    is_active: true,
-    sort_order: 3,
-    image_url: '/assets/img/gen-04-outdoor-urban-tennis-court-at-golden-hou.jpg',
-    hourly_price: 20,
-    court_number: 3,
-  },
-  {
-    id: 'outdoor-4',
-    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
-    name: 'Platz 4',
-    surface: 'Sand',
-    environment: 'Außenplatz',
-    is_active: true,
-    sort_order: 4,
-    image_url: '/assets/img/gen-04-overhead-aerial-view-of-three-dark-green.webp',
-    hourly_price: 20,
-    court_number: 4,
-  },
-]
-
 function CourtsPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
@@ -209,7 +181,7 @@ function CourtsPage() {
   useEffect(() => {
     getBootstrap()
       .then((r) => {
-        setCourts([...r.courts, ...OUTDOOR_COURTS])
+        setCourts(r.courts)
         setVenues(r.venues)
         setLoaded(true)
       })

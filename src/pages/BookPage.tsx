@@ -895,34 +895,6 @@ function Success({ result, onAgain }: { result: NonNullable<CreateResp['reservat
 
 /* ---------- page ---------- */
 
-// hardcoded outdoor courts (BД без колонки environment — визуал только на странице)
-const OUTDOOR_COURTS: Court[] = [
-  {
-    id: 'outdoor-3',
-    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
-    name: 'Platz 3',
-    surface: 'Sand',
-    environment: 'Außenplatz',
-    is_active: true,
-    sort_order: 3,
-    image_url: '/assets/img/gen-04-outdoor-urban-tennis-court-at-golden-hou.jpg',
-    hourly_price: 20,
-    court_number: 3,
-  },
-  {
-    id: 'outdoor-4',
-    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
-    name: 'Platz 4',
-    surface: 'Sand',
-    environment: 'Außenplatz',
-    is_active: true,
-    sort_order: 4,
-    image_url: '/assets/img/gen-04-overhead-aerial-view-of-three-dark-green.webp',
-    hourly_price: 20,
-    court_number: 4,
-  },
-]
-
 export default function BookPage() {
   const [params] = useSearchParams()
 
@@ -941,10 +913,8 @@ export default function BookPage() {
 
   useEffect(() => {
     getBootstrap().then(({ venues: v, courts: cs, settings: s }) => {
-      // merge DB courts + hardcoded outdoor courts (Platz 3, Platz 4)
-      const allCourts = [...cs, ...OUTDOOR_COURTS]
       setVenues(v)
-      setCourts(allCourts)
+      setCourts(cs)
       setSettings(s)
       setLoading(false)
       // URL prefill
@@ -952,7 +922,7 @@ export default function BookPage() {
       const pDate = params.get('date')
       const pTime = params.get('time')
       let target = 0
-      const court = pCourt ? allCourts.find((c) => c.id === pCourt && c.is_active) : undefined
+      const court = pCourt ? cs.find((c) => c.id === pCourt && c.is_active) : undefined
       if (court) {
         setVenueId(court.venue_id)
         setSelected({ courtId: court.id, times: pTime ? [pTime] : [] })

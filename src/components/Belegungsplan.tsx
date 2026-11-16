@@ -2,34 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, getBootstrap, type Court, type DayOverview, type SlotInfo } from '../lib/api'
 
-// Outdoor courts hardcoded (no DB rows) — same as CourtsPage
-const OUTDOOR_COURTS: Court[] = [
-  {
-    id: 'outdoor-3',
-    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
-    name: 'Platz 3',
-    surface: 'Sand',
-    environment: 'Außenplatz',
-    is_active: true,
-    sort_order: 3,
-    image_url: '/assets/img/gen-04-outdoor-urban-tennis-court-at-golden-hou.jpg',
-    hourly_price: 20,
-    court_number: 3,
-  },
-  {
-    id: 'outdoor-4',
-    venue_id: '35c2a482-71ab-4ada-aa15-f6fc16d4392c',
-    name: 'Platz 4',
-    surface: 'Sand',
-    environment: 'Außenplatz',
-    is_active: true,
-    sort_order: 4,
-    image_url: '/assets/img/gen-04-overhead-aerial-view-of-three-dark-green.webp',
-    hourly_price: 20,
-    court_number: 4,
-  },
-]
-
 const TZ = 'Europe/Berlin'
 const MAX_DAYS = 365
 const WINDOW_SIZE = 14
@@ -101,7 +73,7 @@ export function Belegungsplan() {
         const map: Record<string, DayOverview> = {}
         for (const d of ov.days ?? []) map[d.date] = d
         setOverviewMap(map)
-        setCourts([...cv.courts, ...OUTDOOR_COURTS])
+        setCourts(cv.courts)
       } catch {
         if (alive) setError('Belegungsdaten konnten nicht geladen werden.')
       } finally {
