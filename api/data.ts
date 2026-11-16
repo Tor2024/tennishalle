@@ -1,6 +1,6 @@
 // data-api — публичное чтение: корты, площадки, настройки, блокировки, новости, партнёры, события
 // Заменяет прямые SELECT-ы из Supabase (getCourts/getClubSettings/getCourtBlocks) на своём бэкенде.
-import { db, json } from "./_lib";
+import { db, json } from "./_lib.js";
 
 export const config = { runtime: "nodejs" };
 

@@ -3,7 +3,7 @@ import {
   db, TZ, pad2, toMin, toHHMM,
   berlinToday, berlinWeekday, berlinToUtc, genRef,
   json, getUser,
-} from "./_lib";
+} from "./_lib.js";
 
 export const config = { runtime: "nodejs" }; // Fluid Compute, streaming OK
 

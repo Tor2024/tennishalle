@@ -1,5 +1,5 @@
 // auth-api — регистрация / вход / выход / текущий пользователь (cookie-сессии)
-import { db, json, getUser, createSession, destroySession, hashPassword, verifyPassword } from "./_lib";
+import { db, json, getUser, createSession, destroySession, hashPassword, verifyPassword } from "./_lib.js";
 
 export const config = { runtime: "nodejs" };
 
