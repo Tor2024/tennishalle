@@ -33,10 +33,15 @@ async function bootstrap(): Promise<Response> {
     p.query(`select * from courts where is_active = true order by sort_order`),
     p.query(`select * from club_settings where id = 1`),
   ]);
+  // pg возвращает numeric как строку — фронт ждёт число (Supabase возвращал число)
+  const courts = courtsRes.rows.map((c: Record<string, unknown>) => ({
+    ...c,
+    hourly_price: c.hourly_price == null ? null : Number(c.hourly_price),
+  }));
   return json({
     ok: true,
     venues: venuesRes.rows,
-    courts: courtsRes.rows,
+    courts,
     settings: settingsRes.rows[0] ?? null,
   });
 }
