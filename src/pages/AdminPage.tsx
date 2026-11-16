@@ -80,6 +80,9 @@ interface AdminReservation {
   status: string
   court_name: string
   venue_name: string
+  created_at?: string
+  price_changed_after?: string | null
+  price_before_change?: number | null
   court_number: number | null
 }
 
@@ -208,6 +211,14 @@ function DetailModal({ r, onClose }: { r: AdminReservation; onClose: () => void 
           <div className="flex justify-between gap-3"><dt className="text-foreground-600">E-Mail</dt><dd className="break-all">{r.customer_email}</dd></div>
           {r.customer_phone && <div className="flex justify-between gap-3"><dt className="text-foreground-600">Telefon</dt><dd>{r.customer_phone}</dd></div>}
           {r.notes && <div className="flex justify-between gap-3"><dt className="text-foreground-600">Notiz</dt><dd className="text-right">{r.notes}</dd></div>}
+          {r.price_changed_after && (
+            <div className="mt-2 flex items-start gap-1.5 rounded-md border border-accent-500/40 bg-accent-500/10 p-2.5 text-xs text-accent-300">
+              <i className="ri-information-line mt-0.5 shrink-0" />
+              <span>
+                Preisänderung am {r.price_changed_after} — Buchung liegt davor ({formatPrice((r.price_before_change ?? 0) / 100)}), Preis bleibt unverändert.
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -502,12 +513,14 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
   const [hoursCourt, setHoursCourt] = useState<string | null>(null) // court whose hours panel is open
   const [hoursRows, setHoursRows] = useState<{ weekday: number; opens: string; closes: string }[]>([])
   const [zoneHours, setZoneHours] = useState<{ weekday: number; opens: string; closes: string }[]>([]) // hours for the court whose zones panel is open
+  const [priceHistoryRows, setPriceHistoryRows] = useState<{ id: string; court_id: string; zone_label: string; old_price_cents: number | null; new_price_cents: number | null; changed_at: string }[]>([])
 
   const load = async () => {
     setError('')
     try {
       const r = await apiAdmin<{ ok: boolean; courts: AdminCourt[]; venues: Venue[] }>('courts', {})
       const z = await apiAdmin<{ ok: boolean; zones: Zone[] }>('zones', {})
+      apiAdmin<{ ok: boolean; history: typeof priceHistoryRows }>('price_history', {}).then((h) => { if (h.ok) setPriceHistoryRows(h.history ?? []) })
       if (r.ok) { setCourts(r.courts); setVenues(r.venues) }
       if (z.ok) setZones(z.zones)
     } catch {
@@ -691,6 +704,23 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                         </div>
                       ))}
                     </div>
+                    {priceHistoryRows.length > 0 && (
+                      <div className="mt-5 pt-4 border-t border-foreground-950/[0.07]">
+                        <p className="ro-eyebrow text-foreground-600 mb-3">Preis-Archiv · {c.name}</p>
+                        <ul className="divide-y divide-foreground-950/[0.07] text-[12.5px]">
+                          {priceHistoryRows.filter((h) => h.court_id === c.id).map((h) => (
+                            <li key={h.id} className="py-2 flex items-center justify-between gap-3">
+                              <span className="text-foreground-700">{h.changed_at.slice(0, 16).replace('T', ' ')} · {h.zone_label}</span>
+                              <span className="tabular-nums shrink-0">
+                                {h.old_price_cents != null ? `${((h.old_price_cents) / 100).toFixed(2).replace('.', ',')} €` : '—'}
+                                {' → '}
+                                {h.new_price_cents != null ? `${((h.new_price_cents) / 100).toFixed(2).replace('.', ',')} €` : '—'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

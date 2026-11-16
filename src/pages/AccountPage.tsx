@@ -50,7 +50,7 @@ function fmtTime(start: string, tz: string): string {
 }
 
 function BookingsList({
-  list, canCancel, emptyText, courts, venues, tz, cutoff, cancelling, onCancel,
+  list, canCancel, emptyText, courts, venues, tz, cutoff, cancelling, onCancel, priceNotices,
 }: {
   list: Reservation[]
   canCancel: boolean
@@ -61,6 +61,7 @@ function BookingsList({
   cutoff: number
   cancelling: string | null
   onCancel: (id: string) => void
+  priceNotices: Record<string, { changed_at: string; old_price_cents: number | null; new_price_cents: number | null; zone_label?: string }>
 }) {
   const now = Date.now()
   const court = (id: string) => courts.find((c) => c.id === id)
@@ -73,6 +74,7 @@ function BookingsList({
         const cancellable =
           canCancel && ['pending', 'confirmed'].includes(e.status) &&
           new Date(e.start_at).getTime() - now >= cutoff * 3600000
+        const notice = priceNotices[`${e.court_id}|${e.start_at.slice(0, 10)}`]
         return (
           <li key={e.id} className="py-5 border-b border-background-300/50 grid grid-cols-12 gap-3 md:gap-6 items-center">
             <span className="col-span-2 md:col-span-1 font-wordmark text-3xl md:text-4xl text-foreground-400">
@@ -98,6 +100,14 @@ function BookingsList({
                 <p className="mt-1 text-xs text-foreground-500 tabular-nums">
                   Ref. {e.reference} · {formatPrice(e.fee_cents / 100)} — Zahlung direkt im Verein
                 </p>
+                {notice && (
+                  <p className="mt-2 flex items-start gap-1.5 text-xs text-accent-300">
+                    <i className="ri-information-line mt-0.5 shrink-0" />
+                    <span>
+                      Preise wurden nach deiner Buchung geändert ({fmt(notice.changed_at, tz)}) — dein Preis bleibt unverändert. Neue Buchungen gelten zu den neuen Preisen.
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
             <div className="col-span-12 md:col-span-5 flex flex-wrap items-center md:justify-end gap-3 pl-[16.66%] md:pl-0">
@@ -157,6 +167,7 @@ export function AccountPage() {
   const [user, setUser] = useState<{ id: string; email: string; full_name: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [reservations, setReservations] = useState<Reservation[]>([])
+  const [priceNotices, setPriceNotices] = useState<Record<string, { changed_at: string; old_price_cents: number | null; new_price_cents: number | null; zone_label?: string }>>({})
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
@@ -182,9 +193,10 @@ export function AccountPage() {
     setLoading(true)
     setError(null)
     try {
-      const r = await api<{ ok: boolean; reservations: Reservation[] }>('my_bookings', {})
+      const r = await api<{ ok: boolean; reservations: Reservation[]; price_notices?: Record<string, { changed_at: string; old_price_cents: number | null; new_price_cents: number | null; zone_label?: string }> }>('my_bookings', {})
       if (!r.ok) throw new Error((r as { message?: string }).message)
       setReservations(r.reservations ?? [])
+      setPriceNotices(r.price_notices ?? {})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Buchungen konnten nicht geladen werden.')
     } finally {
@@ -283,7 +295,7 @@ export function AccountPage() {
                     <BookingsList
                       list={upcoming} canCancel emptyText="Noch keine kommenden Buchungen."
                       courts={courts} venues={venues} tz={tz} cutoff={cutoff}
-                      cancelling={cancelling} onCancel={cancel}
+                      cancelling={cancelling} onCancel={cancel} priceNotices={priceNotices}
                     />
                   </section>
                   <section>
@@ -294,7 +306,7 @@ export function AccountPage() {
                     <BookingsList
                       list={past} canCancel={false} emptyText="Noch nichts hier."
                       courts={courts} venues={venues} tz={tz} cutoff={cutoff}
-                      cancelling={cancelling} onCancel={cancel}
+                      cancelling={cancelling} onCancel={cancel} priceNotices={priceNotices}
                     />
                   </section>
                 </div>

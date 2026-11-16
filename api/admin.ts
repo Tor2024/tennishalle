@@ -141,7 +141,13 @@ async function bookings(body: Record<string, unknown>) {
   const status = typeof body.status === 'string' && body.status ? body.status : null
   const courtId = typeof body.court_id === 'string' && body.court_id ? body.court_id : null
   const rows = await db().query(
-    `select r.*, c.name as court_name, v.name as venue_name, c.court_number
+    `select r.*, c.name as court_name, v.name as venue_name, c.court_number,
+      (select to_char(min(l.changed_at) at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+         from price_change_log l
+        where l.court_id = r.court_id and l.changed_at > r.created_at and l.changed_at < r.start_at) as price_changed_after,
+      (select l.old_price_cents from price_change_log l
+        where l.court_id = r.court_id and l.changed_at > r.created_at and l.changed_at < r.start_at
+        order by l.changed_at limit 1) as price_before_change
      from reservations r join courts c on c.id = r.court_id join venues v on v.id = c.venue_id
      where ($1::timestamptz is null or r.start_at >= $1) and ($2::timestamptz is null or r.start_at < $2)
        and ($3::text is null or r.status = $3) and ($4::uuid is null or r.court_id = $4)
@@ -284,11 +290,18 @@ async function saveZone(body: Record<string, unknown>) {
   const et = `${endTime.slice(0, 5)}:00`
 
   if (id) {
+    const prev = await db().query(`select label, price_cents from price_zones where id = $1`, [id])
     const r = await db().query(
       `update price_zones set court_id=$1, label=$2, weekdays=$3, start_time=$4, end_time=$5, price_cents=$6, sort_order=$7 where id=$8 returning id`,
       [courtId, label, weekdays, st, et, Math.round(priceCents), sortOrder, id],
     )
     if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Zone nicht gefunden.' }, 404)
+    if (prev.rows.length && Number(prev.rows[0].price_cents) !== Math.round(priceCents)) {
+      await db().query(
+        `insert into price_change_log (court_id, zone_id, zone_label, old_price_cents, new_price_cents, changed_by) values ($1, $2, $3, $4, $5, $6)`,
+        [courtId, id, prev.rows[0].label, Number(prev.rows[0].price_cents), Math.round(priceCents), body._user_id ?? null],
+      )
+    }
     return json({ ok: true, id: r.rows[0].id, message: 'Zone gespeichert.' })
   }
   const r = await db().query(
@@ -302,8 +315,29 @@ async function saveZone(body: Record<string, unknown>) {
 async function deleteZone(body: Record<string, unknown>) {
   const id = typeof body.id === 'string' ? body.id : ''
   if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  const prev = await db().query(`select court_id, label, price_cents from price_zones where id = $1`, [id])
   await db().query(`delete from price_zones where id = $1`, [id])
+  if (prev.rows.length) {
+    await db().query(
+      `insert into price_change_log (court_id, zone_id, zone_label, old_price_cents, new_price_cents, changed_by) values ($1, $2, $3, $4, null, $5)`,
+      [prev.rows[0].court_id, id, `${prev.rows[0].label} (geloescht)`, Number(prev.rows[0].price_cents), body._user_id ?? null],
+    )
+  }
   return json({ ok: true, message: 'Zone geloescht.' })
+}
+
+/** Preisänderungs-Historie eines Platzes (Archiv für Kontrolle). */
+async function priceHistory(body: Record<string, unknown>) {
+  const courtId = typeof body.court_id === 'string' && body.court_id ? body.court_id : null
+  const rows = courtId
+    ? await db().query(
+        `select l.*, c.name as court_name from price_change_log l join courts c on c.id = l.court_id where l.court_id = $1 order by l.changed_at desc limit 200`,
+        [courtId],
+      )
+    : await db().query(
+        `select l.*, c.name as court_name from price_change_log l join courts c on c.id = l.court_id order by l.changed_at desc limit 200`,
+      )
+  return json({ ok: true, history: rows.rows })
 }
 
 /** Öffnungszeiten eines Platzes (7 Wochentage). */
@@ -577,8 +611,9 @@ export async function POST(req: Request): Promise<Response> {
       case 'save_court': return await saveCourt(body)
       case 'delete_court': return await deleteCourt(body)
       case 'zones': return await zonesList(body)
-      case 'save_zone': return await saveZone(body)
-      case 'delete_zone': return await deleteZone(body)
+      case 'save_zone': return await saveZone({ ...body, _user_id: auth.user.id })
+      case 'delete_zone': return await deleteZone({ ...body, _user_id: auth.user.id })
+      case 'price_history': return await priceHistory(body)
       case 'upload_image': return await uploadImage(body)
       case 'delete_image': return await deleteImage(body)
       case 'partners': return await partnersList()
