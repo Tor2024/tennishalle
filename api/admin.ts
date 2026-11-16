@@ -219,7 +219,7 @@ export async function POST(req: Request): Promise<Response> {
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {
-    console.error('admin-api error', e)
-    return json({ ok: false, code: 'network', message: 'Netzwerkfehler. Bitte erneut versuchen.' }, 500)
+    console.error('admin-api error', e instanceof Error ? `${e.message}\n${e.stack}` : e)
+    return json({ ok: false, code: 'network', message: `Netzwerkfehler: ${e instanceof Error ? e.message : 'unbekannt'}` }, 500)
   }
 }
