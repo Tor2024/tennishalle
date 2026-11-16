@@ -29,7 +29,12 @@ export function Nav() {
     navigate('/')
   }
 
-  const links = [{ to: '/', label: 'Plätze' }]
+  const links = [
+    { to: '/#belegung', label: 'Belegungsplan' },
+    { to: '/#aktuelles', label: 'Aktuelles' },
+    { to: '/#partner', label: 'Partner' },
+    { to: '/#court-list', label: 'Plätze' },
+  ]
 
 function NavLink({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {
   return (
@@ -60,11 +65,14 @@ function NavLink({ to, active, children }: { to: string; active: boolean; childr
         </Link>
 
         <div className="hidden md:flex items-center gap-10">
-          {links.map((l) => (
-            <NavLink key={l.to} to={l.to} active={location.pathname === l.to}>
-              {l.label}
-            </NavLink>
-          ))}
+          {links.map((l) => {
+            const hash = l.to.split('#')[1] ?? ''
+            return (
+              <NavLink key={l.to} to={l.to} active={location.pathname === '/' && location.hash === `#${hash}`}>
+                {l.label}
+              </NavLink>
+            )
+          })}
           {authed ? (
             <>
               <NavLink to="/account" active={location.pathname === '/account'}>
@@ -108,8 +116,7 @@ function NavLink({ to, active, children }: { to: string; active: boolean; childr
             <Link key={l.to} to={l.to} className="ro-eyebrow text-foreground-800 py-1">
               {l.label}
             </Link>
-          ))}
-          {authed ? (
+          ))}          {authed ? (
             <>
               <Link to="/account" className="ro-eyebrow text-foreground-800 py-1">
                 Mein Konto

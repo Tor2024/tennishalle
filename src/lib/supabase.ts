@@ -81,6 +81,23 @@ export function formatPrice(value: number | null | undefined, currency = 'EUR'):
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency }).format(Number(value ?? 0))
 }
 
+export interface CourtBlock {
+  court_id: string
+  starts_at: string
+  ends_at: string
+  reason: string
+}
+
+export async function getCourtBlocks(date: string): Promise<CourtBlock[]> {
+  const res = await supabase
+    .from('court_blocks')
+    .select('court_id,starts_at,ends_at,reason')
+    .lte('starts_at', `${date}T23:59:59Z`)
+    .gte('ends_at', `${date}T00:00:00Z`)
+  if (res.error) return []
+  return res.data as CourtBlock[]
+}
+
 export function hhmmToMin(hhmm: string): number {
   if (!hhmm || !hhmm.includes(':')) return 0
   const [h, m] = hhmm.split(':').map(Number)

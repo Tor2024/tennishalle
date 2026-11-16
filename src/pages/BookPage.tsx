@@ -7,21 +7,21 @@ import {
   formatPrice,
   getCourts,
   getClubSettings,
+  getCourtBlocks,
   hhmmToMin,
   minToHHMM,
   type ClubSettings,
   type Court,
+  type CourtBlock,
   type Venue,
   type DayOverview,
   type SlotInfo,
 } from '../lib/supabase'
 
-// 30-Minuten-Intervals: 30 / 60 / 90 Minuten
-const DURATIONS = [30, 60, 90] as const
-import { addDays, dateParts, dateShort, todayInTz } from '../lib/dates'
+import { addDays, dateShort, todayInTz } from '../lib/dates'
 
-const STEPS = ['Anlage', 'Datum & Dauer', 'Platz & Zeit', 'Angaben', 'Prüfen']
-const TITLES = ['Anlage wählen', 'Datum & Dauer', 'Platz & Zeit wählen', 'Deine Angaben', 'Prüfen & absenden']
+const STEPS = ['Anlage', 'Datum & Zeit', 'Angaben', 'Prüfen']
+const TITLES = ['Anlage wählen', 'Datum & Zeit', 'Deine Angaben', 'Prüfen & absenden']
 
 interface AvailabilityResp {
   ok?: boolean
@@ -258,32 +258,58 @@ function VenueStep({
 
 /* ---------- step 2: date & duration (yd) ---------- */
 
-const LEGEND = [
-  { color: '#5ad06e', label: 'Alles frei' },
-  { color: '#4aa8ff', label: 'Teilweise belegt' },
-  { color: '#ff5a5a', label: 'Ausgebucht' },
-]
+const DE_WEEKDAYS = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.']
+const DE_WEEKDAYS_SHORT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+const DE_MONTHS = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai.', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
 
 function DateStep({
   settings,
   date,
-  duration,
   overview,
+  setOverview,
+  courts,
+  selected,
   onChange,
   onBack,
   onNext,
+  onSlotSelect,
 }: {
   settings: ClubSettings
   date: string
-  duration: 30 | 60 | 90
   overview: DayOverview[]
-  onChange: (patch: { date?: string; duration?: number }) => void
+  setOverview: (days: DayOverview[]) => void
+  courts: Court[]
+  selected: { courtId: string | null; times: string[] }
+  onChange: (patch: { date?: string }) => void
   onBack: () => void
   onNext: () => void
+  onSlotSelect: (courtId: string, time: string) => void
 }) {
   const tz = settings.timezone
-  const days = Array.from({ length: 7 }, (_, i) => addDays(todayInTz(tz), i))
-  const colorFor = (d: string) => {
+  const today = todayInTz(tz)
+  const [view, setView] = useState<{ y: number; m: number }>(() => {
+    const d = date ? new Date(date) : new Date(today)
+    return { y: d.getFullYear(), m: d.getMonth() }
+  })
+  const { y, m } = view
+
+  useEffect(() => {
+    if (date) {
+      const d = new Date(date)
+      setView({ y: d.getFullYear(), m: d.getMonth() })
+    }
+  }, [date])
+
+  useEffect(() => {
+    const from = `${y}-${String(m + 1).padStart(2, '0')}-01`
+    api<{ ok?: boolean; days?: DayOverview[] }>('month_overview', { from, days: 31 }).then((r) => {
+      if (r.days) setOverview(r.days)
+    })
+  }, [y, m])
+
+  const isPast = (d: string) => d < today
+  const isToday = (d: string) => d === today
+  const dayColor = (d: string) => {
     const o = overview.find((x) => x.date === d)
     if (!o || o.total === 0) return undefined
     if (o.free <= 0) return '#ff5a5a'
@@ -291,84 +317,146 @@ function DateStep({
     return '#5ad06e'
   }
 
+  const prevMonth = () => setView({ y: m === 0 ? y - 1 : y, m: m === 0 ? 11 : m - 1 })
+  const nextMonth = () => setView({ y: m === 11 ? y + 1 : y, m: m === 11 ? 0 : m + 1 })
+
+  const daysInMonth = new Date(y, m + 1, 0).getDate()
+
+  const gridDays: { date: string; day: number; inMonth: boolean; dateObj: Date }[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cd = new Date(y, m, d)
+    gridDays.push({ date: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`, day: d, inMonth: true, dateObj: cd })
+  }
+
   return (
     <div>
-      <p className="ro-eyebrow text-foreground-600">Datum</p>
-      <div className="mt-3 flex flex-wrap gap-3 text-[13px] text-foreground-700">
-        {LEGEND.map((l) => (
-          <span key={l.label} className="inline-flex items-center gap-1.5">
-            <span className="font-bold tabular-nums" style={{ color: l.color }}>
-              12
-            </span>
-            {l.label}
+      <p className="ro-eyebrow text-foreground-600">DATUM</p>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-foreground-600">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#5ad06e' }} />
+          Alle frei
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#4aa8ff' }} />
+          Teilweise belegt
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#ff5a5a' }} />
+          Ausgebucht
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-[4px] shrink-0 border-2" style={{ borderColor: '#facc15' }} />
+          Ausgewählt
+        </span>
+      </div>
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            type="button"
+            onClick={prevMonth}
+            aria-label="Vorheriger Monat"
+            className="w-10 h-10 rounded-full border border-foreground-950/15 flex items-center justify-center text-foreground-600 hover:text-primary-500 hover:border-primary-500/60 transition-colors"
+          >
+            <i className="ri-arrow-left-line text-xl" />
+          </button>
+          <span className="font-heading text-[22px] font-bold text-foreground-950 tabular-nums">
+            {DE_MONTHS[m]} {y}
           </span>
-        ))}
-      </div>
-      <div className="mt-3 grid grid-cols-4 sm:grid-cols-7 gap-2">
-        {days.map((d, i) => {
-          const p = dateParts(d)
-          const sel = date === d
-          return (
-            <button
-              key={d}
-              type="button"
-              onClick={() => onChange({ date: d })}
-              aria-pressed={sel}
-              className={`rounded-lg border p-3 text-center transition-colors cursor-pointer ${
-                sel ? 'border-primary-500 bg-primary-500/[0.12]' : 'border-foreground-950/10 hover:border-foreground-950/30'
-              }`}
-            >
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-600">
-                {i === 0 ? 'Heute' : p.wd}
-              </span>
-              <span className="block mt-1 text-[22px] font-bold tabular-nums" style={{ color: colorFor(d) }}>
-                {p.day}
-              </span>
-              <span className="block text-[11px] uppercase tracking-[0.12em] text-foreground-500">{p.mon}</span>
-            </button>
-          )
-        })}
-      </div>
+          <button
+            type="button"
+            onClick={nextMonth}
+            aria-label="Nächster Monat"
+            className="w-10 h-10 rounded-full border border-foreground-950/15 flex items-center justify-center text-foreground-600 hover:text-primary-500 hover:border-primary-500/60 transition-colors"
+          >
+            <i className="ri-arrow-right-line text-xl" />
+          </button>
+        </div>
 
-      <label className="block mt-5 max-w-xs">
-        <span className="ro-eyebrow text-foreground-600">Späteres Datum (bis zu {settings.booking_window_days} Tage im Voraus)</span>
-        <input
-          type="date"
-          value={date}
-          min={todayInTz(tz)}
-          max={addDays(todayInTz(tz), settings.booking_window_days)}
-          onChange={(e) => onChange({ date: e.target.value || date })}
-          className="mt-2 h-11 w-full rounded-full border border-foreground-950/15 bg-transparent px-4 text-[15px] text-foreground-950 [color-scheme:dark] focus:border-primary-500/60 focus:outline-none transition-colors"
-        />
-      </label>
+        <div className="grid grid-cols-7 gap-1 mb-3">
+          {DE_WEEKDAYS_SHORT.map((wd) => (
+            <div key={wd} className="text-[11px] uppercase tracking-[0.12em] text-foreground-500 font-semibold text-center">
+              {wd}
+            </div>
+          ))}
+        </div>
 
-      <p className="mt-8 ro-eyebrow text-foreground-600">Dauer</p>
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {DURATIONS.map((d) => {
-          const sel = duration === d
-          return (
-            <button
-              key={d}
-              type="button"
-              onClick={() => onChange({ duration: d })}
-              aria-pressed={sel}
-              className={`relative h-14 rounded-lg border transition-colors cursor-pointer ${
-                sel ? 'border-primary-500 bg-primary-500/[0.08]' : 'border-foreground-950/10 hover:border-foreground-950/30'
-              }`}
-            >
-              <span className="text-[18px] font-bold text-foreground-950">{d}</span>
-              <span className="text-[13px] text-foreground-600 ml-1">min</span>
-              {sel && (
-                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary-500 text-background-50 flex items-center justify-center">
-                  <i className="ri-check-line text-xs" />
+        <div className="grid grid-cols-7 gap-1">
+          {gridDays.map((gd, i) => {
+            const sel = gd.date === date
+            const disabled = isPast(gd.date)
+            const color = gd.inMonth ? dayColor(gd.date) : undefined
+            const todayBadge = isToday(gd.date)
+            return (
+              <button
+                key={i}
+                type="button"
+                disabled={disabled}
+                onClick={() => !disabled && onChange({ date: gd.date })}
+                aria-pressed={sel}
+                className={`aspect-square rounded-lg border flex flex-col items-center justify-center transition-colors ${
+                  sel
+                    ? 'border-primary-500 bg-primary-500/[0.12]'
+                    : disabled
+                      ? 'border-foreground-950/10 text-foreground-400'
+                      : 'border-foreground-950/10 hover:border-foreground-950/30 hover:bg-foreground-950/[0.05]'
+                } ${todayBadge && sel ? 'ring-2 ring-primary-500' : ''}`}
+              >
+                <span className={`block text-[10px] uppercase tracking-[0.12em] ${todayBadge ? 'font-bold text-primary-500' : 'text-foreground-500'}`}>
+                  {DE_WEEKDAYS[gd.dateObj.getDay()]}
                 </span>
-              )}
-            </button>
-          )
-        })}
+                {todayBadge && !sel && (
+                  <span className="block text-[10px] font-bold text-primary-500 mt-0.5">HEUTE</span>
+                )}
+                <span
+                  className={`block mt-1 text-[22px] font-bold tabular-nums ${sel ? 'text-primary-500' : todayBadge ? 'text-primary-500' : 'text-foreground-950'}`}
+                  style={color ? { color } : undefined}
+                >
+                  {gd.day}
+                </span>
+                <span className={`block text-[10px] uppercase tracking-[0.12em] text-foreground-500`}>
+                  {DE_MONTHS[gd.dateObj.getMonth()].toUpperCase()}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Zeiten ansehen" nextDisabled={!date || !DURATIONS.includes(duration)} />
+      {date && courts.length > 0 && (
+        <div className="mt-12">
+          <p className="ro-eyebrow text-foreground-600 mb-3">FREIE ZEITEN</p>
+          <p className="text-[13px] text-foreground-700 mb-6">
+            Klicke auf freie 30-Min-Slots – mehrere Slots in Folge ergeben deine Buchungsdauer.
+          </p>
+          <div className="mb-4 flex flex-wrap gap-3 text-[12px] text-foreground-600">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#5ad06e' }} />
+              Frei
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#facc15' }} />
+              Ausgewählt
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 shrink-0" style={{ backgroundColor: '#9ca3af', borderBottom: '1px solid #9ca3af' }} />
+              Belegt / Abo
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#ff5a5a' }} />
+              Gesperrt
+            </span>
+          </div>
+          <TimeTable
+            courts={courts}
+            date={date}
+            duration={30}
+            selected={selected}
+            onSelect={onSlotSelect}
+            onBack={onBack}
+            onNext={onNext}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -404,16 +492,19 @@ function TimeTable({
   selected,
   onSelect,
   onBack,
+  onNext,
 }: {
   courts: Court[]
   date: string
   duration: 30 | 60 | 90
-  selected: { courtId: string | null; time: string | null } | null
+  selected: { courtId: string | null; times: string[] }
   onSelect: (courtId: string, time: string) => void
   onBack: () => void
+  onNext: () => void
 }) {
   const [busy, setBusy] = useState(false)
   const [table, setTable] = useState<Map<string, TableSlot>>(new Map())
+  const [blocks, setBlocks] = useState<CourtBlock[]>([])
 
   const load = async () => {
     setBusy(true)
@@ -425,19 +516,19 @@ function TimeTable({
       } catch { /* keep missing as unknown */ }
     }))
     setTable(m)
+    setBlocks(await getCourtBlocks(date))
     setBusy(false)
   }
 
   useEffect(() => { load() }, [courts.length, date, duration])
 
   const selCourt = selected?.courtId ?? null
-  const selTime = selected?.time ?? null
 
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="ro-chip rounded-full px-3 py-1.5 text-[13px] text-foreground-800">{dateShort(date)}</span>
-        <span className="ro-chip rounded-full px-3 py-1.5 text-[13px] text-foreground-800">{duration} min</span>
+        <span className="ro-chip rounded-full px-3 py-1.5 text-[13px] text-foreground-800">{selected.times.length * 30} min</span>
         <button
           type="button"
           onClick={load}
@@ -476,22 +567,31 @@ function TimeTable({
                   {courts.map((c) => {
                     const s = table.get(`${c.id}|${time}`)
                     const available = s?.available ?? true
-                    const isSel = selCourt === c.id && selTime === time
+                    // blocked by administration: slot start falls inside a court_blocks window (UTC instants)
+                    const slotStartUtc = new Date(`${date}T${time}:00Z`).getTime()
+                    const isBlocked = blocks.some(
+                      (b) => b.court_id === c.id &&
+                        new Date(b.starts_at).getTime() <= slotStartUtc &&
+                        new Date(b.ends_at).getTime() > slotStartUtc,
+                    )
+                    const isSel = selCourt === c.id && selected.times.includes(time)
                     return (
                       <td key={c.id} className="py-2.5">
                         <button
                           type="button"
-                          disabled={!available || busy}
-                          onClick={() => available && onSelect(c.id, time)}
+                          disabled={!available || isBlocked || busy}
+                          onClick={() => available && !isBlocked && onSelect(c.id, time)}
                           aria-pressed={isSel}
-                          aria-label={`${time} ${c.name} ${available ? 'verfügbar' : 'belegt'}`}
-                          className="block w-full rounded-md border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                          aria-label={`${time} ${c.name} ${isBlocked ? 'gesperrt' : available ? 'verfügbar' : 'belegt'}`}
+                          className={`block w-full rounded-md border transition-colors cursor-pointer disabled:cursor-not-allowed ${
                             isSel
-                              ? 'bg-primary-500 text-background-50 border-primary-500 font-bold'
-                              : available
-                                ? 'bg-foreground-950/[0.04] border-foreground-950/15 text-foreground-950 font-medium hover:border-primary-500/70'
-                                : 'bg-foreground-950/[0.03] border-foreground-950/10 text-foreground-400'
-                          }"
+                              ? 'bg-[#facc15] border-[#facc15] border-2 text-foreground-950 font-bold shadow-[0_0_0_1px_rgba(250,204,21,0.8)]'
+                              : isBlocked
+                                ? 'bg-[#ff5a5a]/[0.25] border-[#ff5a5a]/[0.5] text-[#ff8a8a] font-semibold'
+                                : available
+                                  ? 'bg-[#5ad06e]/[0.2] border-[#5ad06e]/[0.5] text-foreground-900 font-medium hover:border-[#5ad06e]/[0.8]'
+                                  : 'bg-[#9ca3af]/[0.15] border-[#9ca3af]/[0.3] text-foreground-400 line-through'
+                          }`}
                         >
                           {time}
                         </button>
@@ -503,12 +603,12 @@ function TimeTable({
             </tbody>
           </table>
           <p className="mt-4 text-[13px] text-foreground-600">
-            Belegte Slots sind grau und nicht anklickbar. Wähle eine freie Zelle.
+            Belegte Slots sind grau und nicht anklickbar. Wähle beliebige freie 30-Min-Slots – die Anzahl ergibt deine Buchungsdauer.
           </p>
         </div>
       )}
 
-      <StepFooter onBack={onBack} onNext={() => {}} nextLabel="Weiter" nextDisabled={!selCourt || !selTime} />
+      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Weiter" nextDisabled={selected.times.length === 0} />
     </div>
   )
 }
@@ -631,7 +731,7 @@ function ReviewStep({
   venue: Venue | null
   settings: ClubSettings
   date: string
-  duration: 30 | 60 | 90
+  duration: number
   time: string
   details: { name: string; email: string; phone: string; notes: string }
   onBack: () => void
@@ -835,9 +935,8 @@ export default function BookPage() {
 
   const [step, setStep] = useState(0)
   const [venueId, setVenueId] = useState<string | null>(null)
-  const [selected, setSelected] = useState<{ courtId: string | null; time: string | null }>({ courtId: null, time: null })
+  const [selected, setSelected] = useState<{ courtId: string | null; times: string[] }>({ courtId: null, times: [] })
   const [date, setDate] = useState('')
-  const [duration, setDuration] = useState<30 | 60 | 90>(30)
   const [details, setDetails] = useState({ name: '', email: '', phone: '', notes: '' })
   const [result, setResult] = useState<NonNullable<CreateResp['reservation']> | null>(null)
 
@@ -852,24 +951,18 @@ export default function BookPage() {
       // URL prefill
       const pCourt = params.get('court')
       const pDate = params.get('date')
-      const pDur = Number(params.get('duration'))
       let target = 0
       const court = pCourt ? allCourts.find((c) => c.id === pCourt && c.is_active) : undefined
       if (court) {
         setVenueId(court.venue_id)
-        setSelected({ courtId: court.id, time: null })
+        setSelected({ courtId: court.id, times: [] })
         target = 1
       }
       const tz = s?.timezone ?? 'Europe/Berlin'
       const today = todayInTz(tz)
       if (s && pDate && /^\d{4}-\d{2}-\d{2}$/.test(pDate) && pDate >= today && pDate <= addDays(today, s.booking_window_days)) {
         setDate(pDate)
-        if (DURATIONS.includes(pDur as 30 | 60 | 90)) {
-          setDuration(pDur as 30 | 60 | 90)
-          target = court ? 2 : 1
-        } else {
-          target = court ? 2 : 1
-        }
+        target = court ? 2 : 1
       }
       if (target > 0) setStep(target)
       // month overview for date step
@@ -891,20 +984,20 @@ export default function BookPage() {
   const sidebarImage =
     court?.image_url ?? venueCourts.find((c) => c.image_url)?.image_url ?? courts.find((c) => c.image_url)?.image_url ?? '/assets/img/gen-02.webp'
   const sidebarNumber = court ? String(court.court_number ?? 1).padStart(2, '0') : null
-  const fee = court ? Math.round((court.hourly_price ?? 0) * duration * 100 / 60) / 100 : null
+  const fee = court ? Math.round((court.hourly_price ?? 0) * (selected.times.length * 30) * 100 / 60) / 100 : null
 
   const slotSummary: [string, string | null][] = [
     ['Anlage', venue?.name ?? null],
     ['Platz', court ? `${court.name}${court.surface ? ` · ${court.surface}` : ''}` : null],
     ['Datum', step >= 1 && date ? dateShort(date) : null],
-    ['Zeit', selected.time ? `1x${duration} min – ${selected.time} – ${minToHHMM(hhmmToMin(selected.time) + duration)}` : step >= 1 ? `${duration} min` : null],
+    ['Zeit', selected.times[0] ? `${selected.times.length}x30 min – ${selected.times[0]} – ${minToHHMM(hhmmToMin(selected.times[0]) + selected.times.length * 30)}` : step >= 1 ? '30 min' : null],
   ]
 
   const jump = (i: number) => {
     if (i < step) {
       setResult(null)
       setStep(i)
-      setSelected({ courtId: null, time: null })
+      setSelected({ courtId: null, times: [] })
     }
   }
 
@@ -912,9 +1005,8 @@ export default function BookPage() {
     setResult(null)
     setStep(0)
     setVenueId(null)
-    setSelected({ courtId: null, time: null })
+    setSelected({ courtId: null, times: [] })
     setDate('')
-    setDuration(30)
   }
 
   return (
@@ -961,7 +1053,7 @@ export default function BookPage() {
                       selected={venueId}
                       onSelect={(id) => {
                         setVenueId(id)
-                        setSelected({ courtId: null, time: null })
+                        setSelected({ courtId: null, times: [] })
                         setStep(1)
                       }}
                     />
@@ -973,60 +1065,55 @@ export default function BookPage() {
                     <DateStep
                       settings={settings}
                       date={date}
-                      duration={duration}
                       overview={overview}
+                      setOverview={setOverview}
+                      courts={venueCourts.length > 0 ? venueCourts : courts}
+                      selected={selected}
                       onChange={(p) => {
                         if (p.date !== undefined) setDate(p.date)
-                        if (p.duration !== undefined) setDuration(p.duration as 30 | 60 | 90)
                       }}
                       onBack={() => setStep(0)}
                       onNext={() => setStep(2)}
-                    />
-                  </div>
-                )}
-
-                {step === 2 && venue && settings && (
-                  <div className="mt-5">
-                    <TimeTable
-                      courts={venueCourts}
-                      date={date}
-                      duration={duration}
-                      selected={selected}
-                      onSelect={(courtId, time) => {
-                        setSelected({ courtId, time })
-                        setStep(3)
+                      onSlotSelect={(courtId, time) => {
+                        if (selected.courtId && selected.courtId !== courtId) {
+                          setSelected({ courtId, times: [time] })
+                        } else {
+                          const times = selected.times.includes(time)
+                            ? selected.times.filter((t) => t !== time)
+                            : [...selected.times, time].sort()
+                          setSelected({ courtId: courtId ?? null, times })
+                        }
                       }}
-                      onBack={() => setStep(1)}
                     />
                   </div>
                 )}
 
-                {step === 3 && (
+                {step === 2 && (
                   <div className="mt-5">
                     <DetailsStep
                       details={details}
                       onPatch={(p) => setDetails((d) => ({ ...d, ...p }))}
-                      onBack={() => setStep(2)}
-                      onNext={() => setStep(4)}
+                      onBack={() => setStep(1)}
+                      onNext={() => setStep(3)}
                     />
                   </div>
                 )}
 
-                {step === 4 && court && settings && (
+                {step === 3 && court && settings && (
                   <div className="mt-5">
                     <ReviewStep
                       court={court}
                       venue={venue}
                       settings={settings}
                       date={date}
-                      duration={duration}
-                      time={selected.time ?? ''}
+                      duration={selected.times.length * 30}
+                      time={selected.times[0] ?? ''}
                       details={details}
-                      onBack={() => setStep(3)}
+                      onBack={() => setStep(2)}
                       onSuccess={(r) => setResult(r)}
                       onConflict={() => {
-                        setSelected({ courtId: null, time: null })
-                        setStep(2)
+                        setSelected({ courtId: null, times: [] })
+                        setStep(1)
                       }}
                     />
                   </div>

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Nav } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import { HeroScrub } from '../components/HeroScrub'
 import { Reveal } from '../components/Reveal'
 import { CtaBand } from '../components/CtaBand'
+import { Belegungsplan } from '../components/Belegungsplan'
+import { Aktuelles } from '../components/Aktuelles'
+import { Partner } from '../components/Partner'
 import { getCourts, type Court, type Venue } from '../lib/supabase'
 
 function Price({ court }: { court: Court }) {
@@ -213,6 +216,20 @@ function CourtsPage() {
       .catch(() => setLoaded(true))
   }, [])
 
+  // hash navigation from Nav links (#belegung, #aktuelles, #partner, #court-list)
+  const location = useLocation()
+  useEffect(() => {
+    const jump = (hash: string, smooth: boolean) => {
+      if (!hash) return
+      const el = document.getElementById(hash)
+      if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
+    }
+    if (location.hash) jump(location.hash.slice(1), false)
+    const onHash = () => jump(location.hash.slice(1), true)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [location.hash, loaded])
+
   const summary = useMemo(() => {
     const n = courts.length
     const v = venues.length
@@ -250,6 +267,10 @@ function CourtsPage() {
       <Nav />
       <main>
         <HeroScrub summary={summary} />
+
+        <Belegungsplan />
+        <Aktuelles />
+        <Partner />
 
         <section id="court-list" className="ro-band-list ro-spot pt-16 md:pt-[100px] pb-4 scroll-mt-24" aria-labelledby="list-title">
           <div className="ro-container">
