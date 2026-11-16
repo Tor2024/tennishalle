@@ -20,7 +20,7 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "bootstrap") return await bootstrap();
     if (body.action === "partners") return await partners();
     if (body.action === "news") return await news();
-    if (body.action === "events") return await events();
+    if (body.action === "events") return await news();
     if (body.action === "legal") return await legal();
     if (body.action === "court_blocks") return await courtBlocks(body);
     if (body.action === "track") return await track(body);
