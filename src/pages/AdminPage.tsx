@@ -602,6 +602,33 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
   )
 }
 
+// resize image client-side (max width) and return base64 payload for upload_image
+async function fileToUploadData(file: File, maxWidth: number): Promise<{ filename: string; data: string }> {
+  const isSvg = file.type === 'image/svg+xml'
+  const isGif = file.type === 'image/gif'
+  if (isSvg || isGif || file.size <= 150 * 1024) {
+    const buf = await file.arrayBuffer()
+    let bin = ''
+    const bytes = new Uint8Array(buf)
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+    return { filename: file.name, data: `data:${file.type};base64,${btoa(bin)}` }
+  }
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, maxWidth / bitmap.width)
+  const w = Math.round(bitmap.width * scale)
+  const h = Math.round(bitmap.height * scale)
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('no ctx')
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  bitmap.close()
+  const dataUrl = canvas.toDataURL('image/webp', 0.82)
+  const name = file.name.replace(/\.[^.]+$/, '') + '.webp'
+  return { filename: name, data: dataUrl }
+}
+
 function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {
   const [form, setForm] = useState({
     name: court?.name ?? '',
@@ -616,7 +643,23 @@ function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | n
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  const onFile = async (file: File) => {
+    if (!file) return
+    setError('')
+    setUploading(true)
+    try {
+      const { filename, data } = await fileToUploadData(file, 520)
+      const r = await apiAdmin<{ ok: boolean; path?: string; message?: string }>('upload_image', { filename, data })
+      if (r.ok && r.path) set('image_url', r.path)
+      else setError(r.message ?? 'Upload fehlgeschlagen.')
+    } catch {
+      setError('Upload fehlgeschlagen.')
+    }
+    setUploading(false)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
@@ -645,6 +688,14 @@ function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | n
         </div>
         <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Bild-URL</span>
           <input value={form.image_url} onChange={(e) => set('image_url', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="/assets/img/… oder https://…" /></label>
+        <div className="mt-2 flex items-center gap-3">
+          <label className={`inline-flex h-9 items-center gap-2 rounded-full border border-foreground-950/20 px-4 text-[12px] font-medium cursor-pointer hover:border-primary-500/60 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+            {uploading ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-upload-2-line" />}
+            {uploading ? 'Wird hochgeladen…' : 'Bild hochladen'}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
+          </label>
+          <span className="text-[11px] text-foreground-500">PNG, JPG, WEBP, SVG, GIF · max 2 MB · wird auf 520 px verkleinert</span>
+        </div>
         {form.image_url && <img src={form.image_url} alt="" className="mt-3 h-32 w-full object-cover rounded-lg ro-frame" />}
         <div className="mt-4 flex items-center justify-between gap-3">
           <label className="flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">

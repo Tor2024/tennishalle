@@ -306,6 +306,72 @@ async function deleteZone(body: Record<string, unknown>) {
   return json({ ok: true, message: 'Zone geloescht.' })
 }
 
+// image upload: commits file to GitHub repo (Tor2024/tennishalle) -> auto redeploy -> served as /img/<name>
+const GH_REPO = 'Tor2024/tennishalle'
+const GH_BRANCH = 'main'
+const IMG_DIR = 'public/img'
+
+function b64ToBuf(b64: string): Buffer {
+  return Buffer.from(b64.replace(/^data:[^,]+,/, ''), 'base64')
+}
+
+const EXT_MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml', gif: 'image/gif',
+}
+
+async function ghApi(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`https://api.github.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(init?.headers ?? {}),
+    },
+  })
+}
+
+async function uploadImage(body: Record<string, unknown>) {
+  const filename = String(body.filename ?? '')
+  const dataB64 = String(body.data ?? '')
+  const safe = filename.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+  const ext = safe.includes('.') ? safe.split('.').pop() ?? '' : ''
+  if (!safe || !EXT_MIME[ext]) return json({ ok: false, code: 'bad_request', message: 'Nur PNG, JPG, WEBP, SVG oder GIF erlaubt.' }, 400)
+  const buf = b64ToBuf(dataB64)
+  if (!buf.length || buf.length > 2 * 1024 * 1024) return json({ ok: false, code: 'bad_request', message: 'Datei fehlt oder groesser als 2 MB.' }, 400)
+
+  const path = `${IMG_DIR}/${Date.now()}-${safe}`
+  const content = buf.toString('base64')
+  const put = await ghApi(`/repos/${GH_REPO}/contents/${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: `upload: ${safe}`, content, branch: GH_BRANCH }),
+  })
+  if (!put.ok) {
+    const errText = await put.text().catch(() => '')
+    console.error('upload_image github error', put.status, errText.slice(0, 400))
+    return json({ ok: false, code: 'github', message: `GitHub-Fehler (${put.status}).` }, 502)
+  }
+  return json({ ok: true, path: `/img/${path.split('/').pop()}` })
+}
+
+async function deleteImage(body: Record<string, unknown>) {
+  const path = String(body.path ?? '')
+  if (!path.startsWith('/img/') || path.includes('..')) return json({ ok: false, code: 'bad_request', message: 'Ungueltiger Pfad.' }, 400)
+  const repoPath = `public${path}`
+  const meta = await ghApi(`/repos/${GH_REPO}/contents/${repoPath}?ref=${GH_BRANCH}`)
+  if (meta.status === 404) return json({ ok: true }) // already gone
+  if (!meta.ok) return json({ ok: false, code: 'github', message: `GitHub-Fehler (${meta.status}).` }, 502)
+  const sha = ((await meta.json()) as { sha?: string }).sha
+  const del = await ghApi(`/repos/${GH_REPO}/contents/${repoPath}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: `delete: ${path}`, sha, branch: GH_BRANCH }),
+  })
+  if (!del.ok) return json({ ok: false, code: 'github', message: `GitHub-Fehler (${del.status}).` }, 502)
+  return json({ ok: true })
+}
+
 export async function POST(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return json({}, 200)
   try {
@@ -331,6 +397,8 @@ export async function POST(req: Request): Promise<Response> {
       case 'zones': return await zonesList(body)
       case 'save_zone': return await saveZone(body)
       case 'delete_zone': return await deleteZone(body)
+      case 'upload_image': return await uploadImage(body)
+      case 'delete_image': return await deleteImage(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {
