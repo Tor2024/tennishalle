@@ -9,13 +9,16 @@ import { Belegungsplan } from '../components/Belegungsplan'
 import { Aktuelles } from '../components/Aktuelles'
 import { Partner } from '../components/Partner'
 import { Kontakt } from '../components/Kontakt'
-import { getBootstrap, type Court, type Venue } from '../lib/api'
+import { getBootstrap, getPriceOverview, type Court, type CourtPriceInfo, type Venue } from '../lib/api'
 
-function Price({ court }: { court: Court }) {
+function Price({ court, priceInfo }: { court: Court; priceInfo?: CourtPriceInfo }) {
+  const fmt = (v: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v)
+  const hasRange = priceInfo?.min_hourly != null && priceInfo?.max_hourly != null && priceInfo.min_hourly !== priceInfo.max_hourly
+  const single = priceInfo?.min_hourly ?? priceInfo?.max_hourly ?? court.hourly_price
   return (
     <p className="text-foreground-700 text-[13px] whitespace-nowrap">
       <span className="text-[26px] md:text-[28px] leading-none font-bold ro-grad-text-soft">
-        {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(court.hourly_price ?? 0)}
+        {hasRange ? `${fmt(priceInfo!.min_hourly!)} – ${fmt(priceInfo!.max_hourly!)}` : fmt(single ?? 0)}
       </span>{' '}
       / Stunde
     </p>
@@ -70,7 +73,7 @@ function Chips({ court }: { court: Court }) {
 }
 
 /* small card: image on top, body below (like prod card 1) */
-function SmallCard({ court }: { court: Court }) {
+function SmallCard({ court, priceInfo }: { court: Court; priceInfo?: CourtPriceInfo }) {
   return (
     <Reveal className="h-full">
       <article className="h-full flex flex-col rounded-[20px] ro-card p-4 md:p-6">
@@ -103,7 +106,7 @@ function SmallCard({ court }: { court: Court }) {
           <Chips court={court} />
         </div>
         <div className="mt-auto pt-6 flex flex-wrap items-center justify-between gap-4 border-t border-foreground-950/10">
-          <Price court={court} />
+          <Price court={court} priceInfo={priceInfo} />
           <BookPill court={court} />
         </div>
       </article>
@@ -112,7 +115,7 @@ function SmallCard({ court }: { court: Court }) {
 }
 
 /* big card: header row (title + price), two images 3fr/1fr, chips + pills (like prod card 2) */
-function BigCard({ court, detail, delay }: { court: Court; detail: string; delay: number }) {
+function BigCard({ court, detail, delay, priceInfo }: { court: Court; detail: string; delay: number; priceInfo?: CourtPriceInfo }) {
   return (
     <Reveal className="h-full" delay={delay}>
       <article className="h-full flex flex-col rounded-[20px] ro-card ro-card-live p-4 md:p-6">
@@ -128,7 +131,7 @@ function BigCard({ court, detail, delay }: { court: Court; detail: string; delay
             </div>
             <h3 className="mt-2 ro-card-title ro-grad-lime">{court.name}</h3>
           </div>
-          <Price court={court} />
+          <Price court={court} priceInfo={priceInfo} />
         </div>
         <div className="mt-5 grid grid-cols-[3fr_1fr] gap-2 h-[180px] md:h-[215px]">
           <div className="rounded-2xl overflow-hidden ro-frame">
@@ -178,6 +181,7 @@ function CourtsPage() {
   const [venues, setVenues] = useState<Venue[]>([])
   const [filter, setFilter] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [priceMap, setPriceMap] = useState<Record<string, CourtPriceInfo>>({})
 
   useEffect(() => {
     getBootstrap()
@@ -187,6 +191,7 @@ function CourtsPage() {
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
+    getPriceOverview().then(setPriceMap)
   }, [])
 
   // hash navigation from Nav links (#belegung, #aktuelles, #partner, #court-list)
@@ -305,9 +310,9 @@ function CourtsPage() {
               <div key={i} className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-[406fr_842fr]">
                 {pair.map((p, j) =>
                   p.big ? (
-                    <BigCard key={p.court.id} court={p.court} detail={DETAILS[i % DETAILS.length]} delay={j * 100} />
+                    <BigCard key={p.court.id} court={p.court} detail={DETAILS[i % DETAILS.length]} delay={j * 100} priceInfo={priceMap[p.court.id]} />
                   ) : (
-                    <SmallCard key={p.court.id} court={p.court} />
+                    <SmallCard key={p.court.id} court={p.court} priceInfo={priceMap[p.court.id]} />
                   ),
                 )}
               </div>

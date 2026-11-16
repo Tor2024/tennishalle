@@ -468,6 +468,27 @@ function ConfirmButton({ label, confirmLabel, onConfirm, cls, busy }: { label: s
   )
 }
 
+const toMinSafe = (hhmm: string): number => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
+// 30-min slot grid for a court with the price of the zone covering each slot (or null)
+function slotTimesForCourt(c: AdminCourt, zones: Zone[], hours: { weekday: number; opens: string; closes: string }[]): { time: string; price: number | null }[] {
+  if (hours.length === 0) return []
+  const opensList = hours.map((h) => toMinSafe(h.opens.slice(0, 5)))
+  const closesList = hours.map((h) => toMinSafe(h.closes.slice(0, 5)))
+  const openMin = Math.min(...opensList)
+  const closeMin = Math.max(...closesList)
+  const out: { time: string; price: number | null }[] = []
+  for (let m = openMin; m + 30 <= closeMin; m += 30) {
+    const time = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+    const zone = zones.find((z) => z.court_id === c.id && toMinSafe(z.start_time.slice(0, 5)) <= m && m < toMinSafe(z.end_time.slice(0, 5)))
+    out.push({ time, price: zone ? zone.price_cents : null })
+  }
+  return out
+}
+
 function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () => void }) {
   const [courts, setCourts] = useState<AdminCourt[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
@@ -480,6 +501,7 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
   const [editingZone, setEditingZone] = useState<Zone | 'new' | null>(null)
   const [hoursCourt, setHoursCourt] = useState<string | null>(null) // court whose hours panel is open
   const [hoursRows, setHoursRows] = useState<{ weekday: number; opens: string; closes: string }[]>([])
+  const [zoneHours, setZoneHours] = useState<{ weekday: number; opens: string; closes: string }[]>([]) // hours for the court whose zones panel is open
 
   const load = async () => {
     setError('')
@@ -563,7 +585,14 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                     <button onClick={() => setEditing(c)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
                       <i className="ri-edit-line mr-1" />Bearbeiten
                     </button>
-                    <button onClick={() => setZoneCourt(zoneCourt === c.id ? null : c.id)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
+                    <button onClick={() => {
+                      if (zoneCourt === c.id) {
+                        setZoneCourt(null)
+                      } else {
+                        setZoneCourt(c.id)
+                        apiAdmin<{ ok: boolean; hours?: { weekday: number; opens: string; closes: string }[] }>('hours', { court_id: c.id }).then((r) => setZoneHours(r.hours ?? []))
+                      }
+                    }} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
                       <i className="ri-price-tag-3-line mr-1" />Preiszonen ({courtZones(c.id).length})
                     </button>
                     <button onClick={() => openHours(c.id)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
@@ -650,6 +679,19 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                       ))}
                     </ul>
                   )}
+                  <div className="mt-5 pt-4 border-t border-foreground-950/[0.07]">
+                    <p className="ro-eyebrow text-foreground-600 mb-3">Preise · 30-Min-Slots · {c.name}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1.5">
+                      {slotTimesForCourt(c, zones, zoneHours).map(({ time, price }) => (
+                        <div key={time} className="flex items-center justify-between gap-2 text-[12.5px] tabular-nums">
+                          <span className="text-foreground-700">{time}</span>
+                          <span className={price == null ? 'text-foreground-500/60' : 'text-primary-500 font-semibold'}>
+                            {price == null ? '—' : `${(price / 100).toFixed(2).replace('.', ',')} €`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, getBootstrap, type Court, type DayOverview, type SlotInfo } from '../lib/api'
+import { api, getBootstrap, getPriceOverview, type Court, type CourtPriceInfo, type DayOverview, type SlotInfo } from '../lib/api'
 
 const TZ = 'Europe/Berlin'
 const MAX_DAYS = 365
@@ -57,6 +57,7 @@ export function Belegungsplan() {
   const [details, setDetails] = useState<DetailsMap>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [priceMap, setPriceMap] = useState<Record<string, CourtPriceInfo>>({})
 
   const today = berlinToday()
   const maxDate = addDays(today, MAX_DAYS)
@@ -74,6 +75,9 @@ export function Belegungsplan() {
         for (const d of ov.days ?? []) map[d.date] = d
         setOverviewMap(map)
         setCourts(cv.courts)
+        getPriceOverview().then((pm) => {
+          if (alive) setPriceMap(pm)
+        })
       } catch {
         if (alive) setError('Belegungsdaten konnten nicht geladen werden.')
       } finally {
@@ -408,7 +412,7 @@ export function Belegungsplan() {
           ) : viewMode === 'matrix' ? (
             <MatrixView courts={visibleCourts} dayData={dayData} bookHref={bookHref} />
           ) : (
-            <CardsView courts={visibleCourts} dayData={dayData} bookHref={bookHref} />
+            <CardsView courts={visibleCourts} dayData={dayData} bookHref={bookHref} priceMap={priceMap} />
           )}
         </div>
 
@@ -430,12 +434,17 @@ function envLabel(c: Court): string {
   return c.environment === 'Außenplatz' ? 'Außenplatz' : 'Halle'
 }
 
-function priceLabel(c: Court): string | null {
-  if (c.hourly_price == null) return null
-  return `${c.hourly_price.toFixed(2).replace('.', ',')} € / Std.`
+function priceLabel(c: Court, priceInfo?: CourtPriceInfo): string | null {
+  const fmt = (v: number) => `${v.toFixed(2).replace('.', ',')} €`
+  if (priceInfo?.min_hourly != null && priceInfo?.max_hourly != null && priceInfo.min_hourly !== priceInfo.max_hourly) {
+    return `${fmt(priceInfo.min_hourly)} – ${fmt(priceInfo.max_hourly)} / Std.`
+  }
+  const single = priceInfo?.min_hourly ?? priceInfo?.max_hourly ?? c.hourly_price
+  if (single == null) return null
+  return `${fmt(single)} / Std.`
 }
 
-function CardsView({ courts, dayData, bookHref }: { courts: Court[]; dayData?: Record<string, SlotInfo[]>; bookHref: (c: string, t: string) => string }) {
+function CardsView({ courts, dayData, bookHref, priceMap }: { courts: Court[]; dayData?: Record<string, SlotInfo[]>; bookHref: (c: string, t: string) => string; priceMap: Record<string, CourtPriceInfo> }) {
   return (
     <div className="hm-court-cards">
       {courts.map((c) => {
@@ -453,7 +462,7 @@ function CardsView({ courts, dayData, bookHref }: { courts: Court[]; dayData?: R
                   <div className="hm-court-badges">
                     <span className="hm-court-pill">{envLabel(c)}</span>
                     <span className="hm-court-pill">{c.surface ? c.surface.charAt(0).toUpperCase() + c.surface.slice(1) : 'Hartplatz'}</span>
-                    {priceLabel(c) && <span className="hm-court-pill hm-pill-price">{priceLabel(c)}</span>}
+                    {priceLabel(c, priceMap[c.id]) && <span className="hm-court-pill hm-pill-price">{priceLabel(c, priceMap[c.id])}</span>}
                   </div>
                 </div>
               </div>

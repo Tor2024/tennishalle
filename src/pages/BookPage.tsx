@@ -274,6 +274,7 @@ function DateStep({
   onBack,
   onNext,
   onSlotSelect,
+  onSlots,
 }: {
   settings: ClubSettings
   date: string
@@ -285,6 +286,7 @@ function DateStep({
   onBack: () => void
   onNext: () => void
   onSlotSelect: (courtId: string, time: string) => void
+  onSlots: (m: Map<string, TableSlot>) => void
 }) {
   const tz = settings.timezone
   const today = todayInTz(tz)
@@ -455,6 +457,7 @@ function DateStep({
             onSelect={onSlotSelect}
             onBack={onBack}
             onNext={onNext}
+            onSlots={onSlots}
           />
         </div>
       )}
@@ -484,6 +487,7 @@ interface TableSlot {
   courtId: string
   time: string
   available: boolean
+  price: number | null
 }
 
 function TimeTable({
@@ -494,6 +498,7 @@ function TimeTable({
   onSelect,
   onBack,
   onNext,
+  onSlots,
 }: {
   courts: Court[]
   date: string
@@ -502,6 +507,7 @@ function TimeTable({
   onSelect: (courtId: string, time: string) => void
   onBack: () => void
   onNext: () => void
+  onSlots: (m: Map<string, TableSlot>) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [table, setTable] = useState<Map<string, TableSlot>>(new Map())
@@ -513,10 +519,11 @@ function TimeTable({
     await Promise.all(courts.map(async (c) => {
       try {
         const r = await api<AvailabilityResp>('availability', { court_id: c.id, date, duration })
-        ;(r.times ?? []).forEach((t) => m.set(`${c.id}|${t.time}`, { courtId: c.id, time: t.time, available: t.available }))
+        ;(r.times ?? []).forEach((t) => m.set(`${c.id}|${t.time}`, { courtId: c.id, time: t.time, available: t.available, price: t.price ?? null }))
       } catch { /* keep missing as unknown */ }
     }))
     setTable(m)
+    onSlots(m)
     setBlocks(await getCourtBlocks(date))
     setBusy(false)
   }
@@ -595,6 +602,9 @@ function TimeTable({
                           }`}
                         >
                           {time}
+                          {available && !isBlocked && s?.price != null && (
+                            <span className="block mt-1 text-[10px] leading-none font-semibold opacity-80 tabular-nums">{formatPrice(s.price / 100)}</span>
+                          )}
                         </button>
                       </td>
                     )
@@ -723,6 +733,7 @@ function ReviewStep({
   date,
   duration,
   time,
+  fee: feeProp,
   details,
   onBack,
   onSuccess,
@@ -734,6 +745,7 @@ function ReviewStep({
   date: string
   duration: number
   time: string
+  fee: number | null
   details: { name: string; email: string; phone: string; notes: string }
   onBack: () => void
   onSuccess: (r: NonNullable<CreateResp['reservation']>) => void
@@ -745,7 +757,7 @@ function ReviewStep({
   const idempotency = useRef(crypto.randomUUID())
   const honeypot = useRef<HTMLInputElement>(null)
 
-  const fee = Math.round((court.hourly_price ?? 0) * duration * 100 / 60) / 100
+  const fee = feeProp ?? Math.round((court.hourly_price ?? 0) * duration * 100 / 60) / 100
   const end = minToHHMM(hhmmToMin(time) + duration)
 
   const rows: [string, string][] = [
@@ -934,6 +946,7 @@ export default function BookPage() {
   const [selected, setSelected] = useState<{ courtId: string | null; times: string[] }>({ courtId: null, times: [] })
   const [date, setDate] = useState('')
   const [details, setDetails] = useState({ name: '', email: '', phone: '', notes: '' })
+  const [slotPrices, setSlotPrices] = useState<Map<string, number | null>>(new Map())
   const [result, setResult] = useState<NonNullable<CreateResp['reservation']> | null>(null)
   const [user, setUser] = useState<AppUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
@@ -995,7 +1008,12 @@ export default function BookPage() {
   const sidebarImage =
     court?.image_url ?? venueCourts.find((c) => c.image_url)?.image_url ?? courts.find((c) => c.image_url)?.image_url ?? '/assets/img/gen-02.webp'
   const sidebarNumber = court ? String(court.court_number ?? 1).padStart(2, '0') : null
-  const fee = court ? Math.round((court.hourly_price ?? 0) * (selected.times.length * 30) * 100 / 60) / 100 : null
+  const fee = (() => {
+    if (!court || selected.times.length === 0) return null
+    const cents = selected.times.map((t) => slotPrices.get(`${court.id}|${t}`))
+    if (cents.every((c) => c != null)) return Math.round(cents.reduce((a, b) => a + (b ?? 0), 0)) / 100
+    return Math.round((court.hourly_price ?? 0) * (selected.times.length * 30) * 100 / 60) / 100
+  })()
 
   const slotSummary: [string, string | null][] = [
     ['Anlage', venue?.name ?? null],
@@ -1126,6 +1144,11 @@ export default function BookPage() {
                       overview={overview}
                       setOverview={setOverview}
                       courts={venueCourts.length > 0 ? venueCourts : courts}
+                      onSlots={(m: Map<string, TableSlot>) => {
+                        const pm = new Map<string, number | null>()
+                        m.forEach((v: TableSlot, k: string) => pm.set(k, v.price))
+                        setSlotPrices(pm)
+                      }}
                       selected={selected}
                       onChange={(p) => {
                         if (p.date !== undefined) setDate(p.date)
@@ -1166,6 +1189,7 @@ export default function BookPage() {
                       date={date}
                       duration={selected.times.length * 30}
                       time={selected.times[0] ?? ''}
+                      fee={fee}
                       details={details}
                       onBack={() => setStep(2)}
                       onSuccess={(r) => setResult(r)}
