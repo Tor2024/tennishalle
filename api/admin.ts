@@ -195,7 +195,7 @@ async function dayData(body: Record<string, unknown>) {
       [from, to],
     ),
   ])
-  return json({ ok: true, reservations, blocks })
+  return json({ ok: true, reservations: reservations.rows, blocks: blocks.rows })
 }
 
 /* ---------- courts CRUD (admin) ---------- */
