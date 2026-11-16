@@ -7,6 +7,7 @@ export function Nav() {
   const [open, setOpen] = useState(false)
   const [authed, setAuthed] = useState(false)
   const [userName, setUserName] = useState('')
+  const [activeSection, setActiveSection] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -25,6 +26,38 @@ export function Nav() {
   }, [location])
 
   useEffect(() => setOpen(false), [location])
+
+  // scrollspy: underline the nav item of the section currently in view (homepage only)
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setActiveSection('')
+      return
+    }
+    const ids = ['belegung', 'aktuelles', 'partner', 'court-list', 'kontakt']
+    let raf = 0
+    const compute = () => {
+      raf = 0
+      let current = ''
+      const line = window.innerHeight * 0.35
+      for (const id of ids) {
+        const el = document.getElementById(id)
+        if (!el) continue
+        if (el.getBoundingClientRect().top <= line) current = id
+      }
+      setActiveSection(current)
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(compute)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    compute()
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [location.pathname])
 
   const signOut = async () => {
     await apiAuth('signout')
@@ -73,7 +106,7 @@ function NavLink({ to, active, children }: { to: string; active: boolean; childr
           {links.map((l) => {
             const hash = l.to.split('#')[1] ?? ''
             return (
-              <NavLink key={l.to} to={l.to} active={location.pathname === '/' && location.hash === `#${hash}`}>
+              <NavLink key={l.to} to={l.to} active={location.pathname === '/' && (activeSection === hash || (location.hash === `#${hash}` && activeSection === ''))}>
                 {l.label}
               </NavLink>
             )
