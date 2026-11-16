@@ -8,6 +8,7 @@ import { CtaBand } from '../components/CtaBand'
 import { Belegungsplan } from '../components/Belegungsplan'
 import { Aktuelles } from '../components/Aktuelles'
 import { Partner } from '../components/Partner'
+import { Kontakt } from '../components/Kontakt'
 import { getBootstrap, type Court, type Venue } from '../lib/api'
 
 function Price({ court }: { court: Court }) {
@@ -301,6 +302,7 @@ function CourtsPage() {
           </div>
         </section>
 
+        <Kontakt />
         <CtaBand />
       </main>
       <Footer />

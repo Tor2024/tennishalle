@@ -594,10 +594,34 @@ export async function POST(req: Request): Promise<Response> {
       case 'save_legal': return await saveLegal(body)
       case 'hours': return await hoursList(body)
       case 'save_hours': return await saveHours(body)
+      case 'messages': return await messagesList(body)
+      case 'handle_message': return await handle_message(body)
+      case 'delete_message': return await deleteMessage(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {
     console.error('admin-api error', e instanceof Error ? `${e.message}\n${e.stack}` : e)
     return json({ ok: false, code: 'network', message: `Netzwerkfehler: ${e instanceof Error ? e.message : 'unbekannt'}` }, 500)
   }
+}
+
+// --- Kontakt-Nachrichten (обратная связь с главной) ---
+async function messagesList(body: any): Promise<Response> {
+  const limit = Math.min(Number(body.limit) || 100, 200)
+  const r = await db().query(
+    `select id, name, email, phone, message, handled, created_at from contact_messages order by created_at desc limit $1`,
+    [limit],
+  )
+  return json({ ok: true, messages: r.rows })
+}
+async function handle_message(body: any): Promise<Response> {
+  if (!body.id) return json({ ok: false, code: 'bad_request', message: 'id fehlt.' }, 400)
+  const r = await db().query(`update contact_messages set handled = not handled where id = $1 returning handled`, [body.id])
+  if (r.rows.length === 0) return json({ ok: false, code: 'not_found', message: 'Nachricht nicht gefunden.' }, 404)
+  return json({ ok: true, handled: r.rows[0].handled })
+}
+async function deleteMessage(body: any): Promise<Response> {
+  if (!body.id) return json({ ok: false, code: 'bad_request', message: 'id fehlt.' }, 400)
+  await db().query(`delete from contact_messages where id = $1`, [body.id])
+  return json({ ok: true, message: 'Nachricht geloescht.' })
 }

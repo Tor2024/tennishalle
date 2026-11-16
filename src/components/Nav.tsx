@@ -38,6 +38,7 @@ export function Nav() {
     { to: '/#aktuelles', label: 'Aktuelles' },
     { to: '/#partner', label: 'Partner' },
     { to: '/#court-list', label: 'Plätze' },
+    { to: '/#kontakt', label: 'Kontakt' },
   ]
 
 function NavLink({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {

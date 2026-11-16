@@ -37,6 +37,7 @@ const TABS = [
   { id: 'partners', label: 'Partner', icon: 'ri-hand-heart-line' },
   { id: 'content', label: 'Aktuelles', icon: 'ri-news-line' },
   { id: 'legal', label: 'Rechtliches', icon: 'ri-scales-3-line' },
+  { id: 'messages', label: 'Nachrichten', icon: 'ri-mail-line' },
 ] as const
 
 interface Catalog {
@@ -1111,6 +1112,114 @@ const LEGAL_LABELS: Record<string, string> = { agb: 'AGB', impressum: 'Impressum
 
 interface AdminLegal { id: string; title: string; body: string; updated_at: string }
 
+// --- Nachrichten: входящие сообщения с формы обратной связи (#kontakt) ---
+interface ContactMessage {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  message: string
+  handled: boolean
+  created_at: string
+}
+
+function MessagesTab() {
+  const [messages, setMessages] = useState<ContactMessage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  const load = () => {
+    setLoading(true)
+    apiAdmin<{ ok: boolean; messages?: ContactMessage[] }>('messages')
+      .then((r) => {
+        if (r.ok) setMessages(r.messages ?? [])
+        else setError('Nachrichten konnten nicht geladen werden.')
+      })
+      .catch(() => setError('Nachrichten konnten nicht geladen werden.'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(load, [])
+
+  async function toggleHandled(id: string) {
+    const r = await apiAdmin<{ ok: boolean; handled?: boolean }>('handle_message', { id })
+    if (r.ok) setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, handled: !!r.handled } : m)))
+  }
+
+  async function remove(id: string) {
+    const r = await apiAdmin<{ ok: boolean; message?: string }>('delete_message', { id })
+    if (r.ok) {
+      setMessage('Nachricht geloescht.')
+      setMessages((ms) => ms.filter((m) => m.id !== id))
+    }
+  }
+
+  const fmt = (s: string) =>
+    new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ }).format(new Date(s))
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h1 className="text-2xl font-heading font-light heading-tight md:text-[32px] text-foreground-950">Nachrichten</h1>
+        <button type="button" onClick={load} className="h-10 px-4 inline-flex items-center gap-2 rounded-full border border-background-300 text-sm font-medium text-foreground-800 hover:bg-background-200 cursor-pointer">
+          <i className="ri-refresh-line" aria-hidden="true" /> Aktualisieren
+        </button>
+      </div>
+      {error && (
+        <p className="mt-6 text-sm text-secondary-300">
+          {error}{' '}
+          <button type="button" onClick={load} className="underline underline-offset-4 cursor-pointer">
+            Erneut versuchen
+          </button>
+        </p>
+      )}
+      {message && <p className="mt-4 text-sm text-primary-400">{message}</p>}
+      {loading ? (
+        <p className="mt-8 text-sm text-foreground-600">Nachrichten werden geladen…</p>
+      ) : messages.length === 0 ? (
+        <div className="mt-8 ro-card p-8 text-center">
+          <i className="ri-mail-line text-3xl text-foreground-500" aria-hidden="true" />
+          <p className="mt-3 text-sm text-foreground-600">Noch keine Nachrichten. Eingänge aus dem Kontaktformular erscheinen hier.</p>
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {messages.map((m) => (
+            <div key={m.id} className={`ro-card p-5 ${m.handled ? 'opacity-60' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-heading text-lg text-foreground-950">{m.name}</p>
+                  <p className="mt-0.5 text-xs text-foreground-600">
+                    <a href={`mailto:${m.email}`} className="hover:text-primary-500">{m.email}</a>
+                    {m.phone && <> · <a href={`tel:${m.phone}`} className="hover:text-primary-500">{m.phone}</a></>}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <span className={`font-label text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border ${m.handled ? 'bg-secondary-900/60 text-secondary-300 border-secondary-700' : 'bg-primary-500/20 text-primary-400 border-primary-500/50'}`}>
+                    {m.handled ? 'Erledigt' : 'Neu'}
+                  </span>
+                  <span className="text-xs text-foreground-500 tabular-nums">{fmt(m.created_at)}</span>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-foreground-800 whitespace-pre-line">{m.message}</p>
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => toggleHandled(m.id)}
+                  className="text-[13px] font-semibold border border-background-300 hover:border-primary-500/60 hover:text-primary-500 px-4 py-2 rounded-full cursor-pointer transition-colors"
+                >
+                  {m.handled ? 'Als neu markieren' : 'Als erledigt markieren'}
+                </button>
+                <ConfirmButton label="Löschen" confirmLabel="Wirklich löschen?" cls="text-[13px] font-semibold border border-secondary-700/60 text-secondary-200 hover:bg-secondary-950/60 px-4 py-2 rounded-full" onConfirm={() => remove(m.id)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LegalTab() {
   const [pages, setPages] = useState<AdminLegal[]>([])
   const [loading, setLoading] = useState(true)
@@ -1796,6 +1905,7 @@ export function AdminPage() {
 {tab === 'partners' && <PartnersTab />}
 {tab === 'content' && <ContentTab />}
 {tab === 'legal' && <LegalTab />}
+{tab === 'messages' && <MessagesTab />}
         </main>
       </div>
     </div>

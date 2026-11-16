@@ -24,6 +24,7 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "legal") return await legal();
     if (body.action === "court_blocks") return await courtBlocks(body);
     if (body.action === "track") return await track(body);
+    if (body.action === "contact") return await contact(body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, code: "network", message: String((e as Error)?.message ?? e) }, 500);
@@ -96,4 +97,21 @@ async function track(body: any): Promise<Response> {
     [path],
   );
   return json({ ok: true });
+}
+
+/** Форма обратной связи: запись в contact_messages (honeypot против спама). */
+async function contact(body: any): Promise<Response> {
+  if (typeof body.website_alt === "string" && body.website_alt.trim() !== "")
+    return json({ ok: true, message: "Nachricht gesendet." });
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 160) : "";
+  const email = typeof body.email === "string" ? body.email.trim().slice(0, 200) : "";
+  const phone = typeof body.phone === "string" && body.phone.trim() !== "" ? body.phone.trim().slice(0, 40) : null;
+  const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
+  if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || message.length < 10)
+    return json({ ok: false, code: "bad_request", message: "Bitte alle Pflichtfelder korrekt ausfuellen." }, 400);
+  await db().query(
+    `insert into contact_messages (name, email, phone, message) values ($1, $2, $3, $4)`,
+    [name, email, phone, message],
+  );
+  return json({ ok: true, message: "Nachricht gesendet." });
 }
