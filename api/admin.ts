@@ -1,4 +1,4 @@
-import { db, json, getUser, TZ } from './_lib.js'
+import { db, json, getUser } from './_lib.js'
 import type { SessionUser } from './_lib.js'
 
 interface PoolClient { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }
@@ -37,10 +37,8 @@ async function stats(_body: Record<string, unknown>) {
       count(*) as b_total,
       coalesce(sum(fee_cents) filter (where status <> 'cancelled'), 0) as r_total,
       count(*) filter (where status = 'cancelled') as c_cancelled,
-      count(distinct customer_email) as customers,
-      count(*) filter (where status = 'cancelled') as c_cancelled
+      count(distinct customer_email) as customers
     from reservations where start_at >= now() - interval '1 year'`,
-    [TZ],
   )
   // per-day last 30 days (bookings + revenue + views)
   const perDay = await db.query<{ day: string; bookings: string; revenue: string; views: string }>(
@@ -52,7 +50,6 @@ async function stats(_body: Record<string, unknown>) {
        (select coalesce(sum(r.fee_cents), 0) from reservations r where r.start_at >= d and r.start_at < d + interval '1 day' and r.status <> 'cancelled') as revenue,
        (select coalesce(sum(v.cnt), 0) from page_views v where v.day = d::date) as views
      from days order by d`,
-    [TZ],
   )
   // per-month last 12 months
   const perMonth = await db.query<{ month: string; bookings: string; revenue: string }>(
@@ -63,21 +60,18 @@ async function stats(_body: Record<string, unknown>) {
        (select count(*) from reservations r where r.start_at >= m and r.start_at < m + interval '1 month') as bookings,
        (select coalesce(sum(r.fee_cents), 0) from reservations r where r.start_at >= m and r.start_at < m + interval '1 month' and r.status <> 'cancelled') as revenue
      from months order by m`,
-    [TZ],
   )
   // weekday distribution (0=Sunday)
   const perWeekday = await db.query<{ weekday: number; bookings: string }>(
     `select extract(dow from start_at at time zone 'Europe/Berlin')::int as weekday, count(*) as bookings
      from reservations where status <> 'cancelled' and start_at >= now() - interval '1 year'
      group by 1 order by 1`,
-    [TZ],
   )
   // popular hours (start hour)
   const perHour = await db.query<{ hour: number; bookings: string }>(
     `select extract(hour from start_at at time zone 'Europe/Berlin')::int as hour, count(*) as bookings
      from reservations where status <> 'cancelled' and start_at >= now() - interval '1 year'
      group by 1 order by 1`,
-    [TZ],
   )
   // court share
   const perCourt = await db.query<{ court_id: string; name: string; bookings: string; revenue: string }>(
@@ -115,7 +109,6 @@ async function stats(_body: Record<string, unknown>) {
        where status = 'confirmed' and start_at >= now() and start_at < now() + interval '30 days'
      )
      select open.n as open_slots, booked.n as booked_slots from open, booked`,
-    [TZ],
   )
   return json({
     ok: true,
