@@ -44,7 +44,29 @@
   --color-primary-900: oklch(0.99 0.06 110);
   --color-primary-950: oklch(0.995 0.03 110);
 
-  --color-secondary-500: oklch(0.75 0.15 45);
+  --color-secondary-50: oklch(0.96 0.02 45);
+  --color-secondary-100: oklch(0.9 0.05 45);
+  --color-secondary-200: oklch(0.83 0.08 45);
+  --color-secondary-300: oklch(0.76 0.11 45);
+  --color-secondary-400: oklch(0.69 0.13 45);
+  --color-secondary-500: oklch(0.63 0.14 45);
+  --color-secondary-600: oklch(0.55 0.13 45);
+  --color-secondary-700: oklch(0.47 0.11 45);
+  --color-secondary-800: oklch(0.38 0.09 45);
+  --color-secondary-900: oklch(0.3 0.07 45);
+  --color-secondary-950: oklch(0.22 0.05 45);
+
+  --color-accent-50: oklch(0.96 0.03 155);
+  --color-accent-100: oklch(0.9 0.06 155);
+  --color-accent-200: oklch(0.82 0.09 155);
+  --color-accent-300: oklch(0.74 0.11 155);
+  --color-accent-400: oklch(0.64 0.12 155);
+  --color-accent-500: oklch(0.55 0.12 155);
+  --color-accent-600: oklch(0.47 0.1 155);
+  --color-accent-700: oklch(0.39 0.08 155);
+  --color-accent-800: oklch(0.31 0.06 155);
+  --color-accent-900: oklch(0.24 0.045 155);
+  --color-accent-950: oklch(0.18 0.03 155);
 }
 
 /* ---- .ro scope overrides (exact copy from production site.css) ---- */
@@ -77,6 +99,8 @@
 }
 
 /* ---- custom rules (verbatim from production) ---- */
+.display-tight { letter-spacing: -0.035em; line-height: 0.86; }
+.heading-tight { letter-spacing: -0.025em; line-height: 0.95; }
 .th-tracking { letter-spacing: 0.28em; }
 
 .hero-wordmark-row {

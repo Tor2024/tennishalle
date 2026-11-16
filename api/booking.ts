@@ -25,6 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "availability") return await availability(body);
     if (body.action === "create") return await createBooking(body, user);
     if (body.action === "member_cancel") return await memberCancel(body, user);
+    if (body.action === "my_bookings") return await myBookings(body, user);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, code: "network", message: String((e as Error)?.message ?? e) }, 500);
@@ -274,6 +275,18 @@ async function memberCancel(body: any, user: { id: string } | null): Promise<Res
   try {
     await p.query(`update reservations set status = 'cancelled' where id = $1`, [id]);
     return json({ ok: true });
+  } catch (e: any) {
+    return json({ ok: false, code: "network", message: e.message }, 500);
+  }
+}
+
+async function myBookings(body: any, user: { id: string } | null): Promise<Response> {
+  if (!user) return json({ ok: false, code: "unauthorized", message: "Bitte anmelden." }, 401);
+  const p = db();
+  try {
+    const r = await p.query(
+      `select * from reservations where customer_user_id = $1 order by start_at desc`, [user.id]);
+    return json({ ok: true, reservations: r.rows });
   } catch (e: any) {
     return json({ ok: false, code: "network", message: e.message }, 500);
   }
