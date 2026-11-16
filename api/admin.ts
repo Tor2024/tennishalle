@@ -422,6 +422,23 @@ async function deleteEvent(body: Record<string, unknown>) {
   return json({ ok: true, message: 'Termin geloescht.' })
 }
 
+// legal pages (agb/impressum/datenschutz/cookies) — read + edit (id fixed, no create/delete)
+async function legalList() {
+  const r = await db().query(`select id, title, body, updated_at from legal_pages order by id`)
+  return json({ ok: true, pages: r.rows })
+}
+
+async function saveLegal(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!['agb', 'impressum', 'datenschutz', 'cookies'].includes(id))
+    return json({ ok: false, code: 'bad_request', message: 'Unbekannte Seite.' }, 400)
+  const title = String(body.title ?? '').trim()
+  const text = String(body.body ?? '').trim()
+  if (!title || !text) return json({ ok: false, code: 'bad_request', message: 'Titel und Text fehlen.' }, 400)
+  await db().query(`update legal_pages set title=$1, body=$2, updated_at=now() where id=$3`, [title, text, id])
+  return json({ ok: true, message: 'Seite gespeichert.' })
+}
+
 // image upload: commits file to GitHub repo (Tor2024/tennishalle) -> auto redeploy -> served as /img/<name>
 const GH_REPO = 'Tor2024/tennishalle'
 const GH_BRANCH = 'main'
@@ -524,6 +541,8 @@ export async function POST(req: Request): Promise<Response> {
       case 'events': return await eventsList()
       case 'save_event': return await saveEvent(body, auth.user)
       case 'delete_event': return await deleteEvent(body)
+      case 'legal': return await legalList()
+      case 'save_legal': return await saveLegal(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {

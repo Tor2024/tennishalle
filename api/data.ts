@@ -21,6 +21,7 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "partners") return await partners();
     if (body.action === "news") return await news();
     if (body.action === "events") return await events();
+    if (body.action === "legal") return await legal();
     if (body.action === "court_blocks") return await courtBlocks(body);
     if (body.action === "track") return await track(body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
@@ -64,6 +65,12 @@ async function news(): Promise<Response> {
     p.query(`select id, kind, title, participants, starts_at, ends_at, description from events where is_published = true and starts_at >= now() - interval '2 hours' order by starts_at limit 8`),
   ]);
   return json({ ok: true, news: postsRes.rows, promo: promoRes.rows[0] ?? null, events: eventsRes.rows });
+}
+
+/** Правовые страницы (agb/impressum/datenschutz/cookies). */
+async function legal(): Promise<Response> {
+  const r = await db().query(`select id, title, body, updated_at from legal_pages order by id`);
+  return json({ ok: true, pages: r.rows });
 }
 
 async function courtBlocks(body: any): Promise<Response> {

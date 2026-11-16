@@ -58,11 +58,19 @@ export function Footer() {
             </Link>
           </div>
         </nav>
-        <p className="md:col-span-3 text-xs text-foreground-600 md:text-right">
-          Alle Preise sind Platzgebühren.
-          <br />
-          Bezahlung direkt im Verein, nicht online.
-        </p>
+        <div className="md:col-span-3 md:text-right">
+          <p className="text-xs text-foreground-600">
+            Alle Preise sind Platzgebühren.
+            <br />
+            Bezahlung direkt im Verein, nicht online.
+          </p>
+          <div className="mt-4 flex flex-wrap md:justify-end gap-x-4 gap-y-1 text-xs text-foreground-600">
+            <Link to="/legal/agb" className="hover:text-primary-500">AGB</Link>
+            <Link to="/legal/impressum" className="hover:text-primary-500">Impressum</Link>
+            <Link to="/legal/datenschutz" className="hover:text-primary-500">Datenschutz</Link>
+            <Link to="/legal/cookies" className="hover:text-primary-500">Cookies</Link>
+          </div>
+        </div>
       </div>
       {/* secret admin entrance — invisible link over the wordmark */}
       <div className="relative">

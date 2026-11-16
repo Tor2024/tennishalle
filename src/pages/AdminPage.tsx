@@ -36,6 +36,7 @@ const TABS = [
   { id: 'bookings', label: 'Buchungen', icon: 'ri-list-check-2' },
   { id: 'partners', label: 'Partner', icon: 'ri-hand-heart-line' },
   { id: 'content', label: 'Aktuelles', icon: 'ri-news-line' },
+  { id: 'legal', label: 'Rechtliches', icon: 'ri-scales-3-line' },
 ] as const
 
 interface Catalog {
@@ -1047,6 +1048,117 @@ function EventModal({ event, onClose, onSaved }: { event: AdminEvent | null; onC
   )
 }
 
+// ---------- legal tab (AGB / Impressum / Datenschutz / Cookies) ----------
+
+const LEGAL_LABELS: Record<string, string> = { agb: 'AGB', impressum: 'Impressum', datenschutz: 'Datenschutz', cookies: 'Cookies' }
+
+interface AdminLegal { id: string; title: string; body: string; updated_at: string }
+
+function LegalTab() {
+  const [pages, setPages] = useState<AdminLegal[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState<AdminLegal | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = () => {
+    setLoading(true)
+    apiAdmin<{ ok: boolean; pages?: AdminLegal[]; message?: string }>('legal', {})
+      .then((r) => {
+        if (r.ok && r.pages) setPages(r.pages)
+        else setError(r.message ?? 'Fehler beim Laden.')
+      })
+      .catch(() => setError('Netzwerkfehler.'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const save = (p: Record<string, unknown>) => {
+    setBusy(true)
+    apiAdmin<{ ok: boolean; message?: string }>('save_legal', p)
+      .then((r) => {
+        if (r.ok) {
+          setMessage(r.message ?? 'Seite gespeichert.')
+          setEditing(null)
+          load()
+        } else setError(r.message ?? 'Fehler beim Speichern.')
+      })
+      .catch(() => setError('Netzwerkfehler.'))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="ro-h2 !text-[28px]">Rechtliches</h1>
+      </div>
+      {message && <p className="mt-4 text-sm text-primary-500">{message}</p>}
+      {error && <p className="mt-4 text-sm text-secondary-300">{error} <button onClick={load} className="underline cursor-pointer">Erneut versuchen</button></p>}
+      {loading ? (
+        <p className="mt-8 text-sm text-foreground-600">Wird geladen…</p>
+      ) : (
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {pages.map((p) => (
+            <div key={p.id} className="ro-card p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="ro-eyebrow text-primary-500">{LEGAL_LABELS[p.id] ?? p.id}</p>
+                  <h3 className="ro-card-title mt-1">{p.title}</h3>
+                  <p className="mt-1 text-xs text-foreground-500">
+                    Stand: {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/Berlin' })} · /legal/{p.id}
+                  </p>
+                  <p className="mt-3 text-sm text-foreground-700 line-clamp-2">{p.body}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button onClick={() => setEditing(p)} className="h-9 px-4 rounded-full border border-background-400 text-[13px] font-medium cursor-pointer hover:border-primary-500 transition-colors">
+                  Bearbeiten
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing && <LegalModal page={editing} onClose={() => setEditing(null)} onSaved={save} busy={busy} />}
+    </div>
+  )
+}
+
+function LegalModal({ page, onClose, onSaved, busy }: { page: AdminLegal; onClose: () => void; onSaved: (p: Record<string, unknown>) => void; busy: boolean }) {
+  const [title, setTitle] = useState(page.title)
+  const [body, setBody] = useState(page.body)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="ro-eyebrow text-primary-500">{LEGAL_LABELS[page.id] ?? page.id}</p>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className={ADMIN_FIELD_CLS + ' mt-2 text-lg font-semibold'} placeholder="Titel" />
+          </div>
+          <button onClick={onClose} aria-label="Schließen" className="w-9 h-9 shrink-0 rounded-full border border-background-400 flex items-center justify-center cursor-pointer hover:border-primary-500 transition-colors">
+            <i className="ri-close-line" />
+          </button>
+        </div>
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={ADMIN_FIELD_CLS + ' mt-4'} placeholder="Text…" />
+        <div className="mt-5 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-background-400 text-[13px] font-medium cursor-pointer hover:border-primary-500 transition-colors">
+            Abbrechen
+          </button>
+          <ConfirmButton
+            label="Speichern"
+            confirmLabel="Wirklich speichern?"
+            onConfirm={() => onSaved({ id: page.id, updated_at: page.updated_at, title, body })}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-semibold hover:bg-primary-400"
+            busy={busy}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {  const [form, setForm] = useState({
     name: court?.name ?? '',
     venue_id: court?.venue_id ?? venues[0]?.id ?? '',
@@ -1626,6 +1738,7 @@ export function AdminPage() {
           {tab === 'bookings' && <BookingsTab catalog={catalog} />}
 {tab === 'partners' && <PartnersTab />}
 {tab === 'content' && <ContentTab />}
+{tab === 'legal' && <LegalTab />}
         </main>
       </div>
     </div>
