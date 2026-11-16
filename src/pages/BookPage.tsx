@@ -8,7 +8,9 @@ import {
   getBootstrap,
   getCourtBlocks,
   hhmmToMin,
+  me,
   minToHHMM,
+  type AppUser,
   type ClubSettings,
   type Court,
   type CourtBlock,
@@ -662,11 +664,11 @@ function DetailsStep({
   return (
     <div>
       <div className="rounded-lg border border-foreground-950/10 bg-foreground-950/[0.03] px-4 py-3 text-[14px] text-foreground-700">
-        Buchung als Gast.{' '}
-        <Link to="/sign-in" className="text-primary-500 underline underline-offset-2 font-semibold">
-          Anmelden
-        </Link>{' '}
-        um einen Verlauf deiner Buchungen zu behalten.
+        Buchung geht auf dein Kundenkonto — Verlauf und Stornierung findest du unter{' '}
+        <Link to="/account" className="text-primary-500 underline underline-offset-2 font-semibold">
+          Mein Konto
+        </Link>
+        .
       </div>
 
       <div className="mt-6 grid gap-5">
@@ -910,6 +912,69 @@ export default function BookPage() {
   const [date, setDate] = useState('')
   const [details, setDetails] = useState({ name: '', email: '', phone: '', notes: '' })
   const [result, setResult] = useState<NonNullable<CreateResp['reservation']> | null>(null)
+  const [user, setUser] = useState<AppUser | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    me().then((u) => {
+      setUser(u)
+      if (u) {
+        setDetails((d) => ({
+          ...d,
+          name: d.name || u.full_name || '',
+          email: d.email || u.email || '',
+        }))
+      }
+      setAuthChecked(true)
+    })
+  }, [])
+
+  // auth gate: booking requires a signed-in account (no guest booking)
+  if (authChecked && !user) {
+    return (
+      <div className="ro min-h-screen flex flex-col">
+        <Nav />
+        <main className="flex-1 pt-16 md:pt-20 ro-band-list ro-spot">
+          <div className="ro-container pt-8 md:pt-12 pb-16 md:pb-24">
+            <p className="ro-eyebrow text-primary-500">Reservieren · Anmeldung erforderlich</p>
+            <h1 className="ro-h1 mt-3">
+              Buche
+              <br />
+              <span className="font-script text-primary-500">deinen Platz.</span>
+            </h1>
+            <p className="mt-6 max-w-lg ro-body text-foreground-700">
+              Um einen Platz zu reservieren, brauchst du ein kostenloses Kundenkonto. Damit gehören deine Buchungen
+              immer zu deinem Profil — mit Verlauf und Stornierung.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                to="/sign-in"
+                className="group box-border inline-flex h-12 items-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap cursor-pointer transition-colors duration-300 text-[15px] leading-none font-medium justify-center bg-primary-500 border-primary-500 hover:bg-primary-400 hover:border-primary-400 text-background-50"
+              >
+                Jetzt anmelden
+                <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full bg-background-50 text-primary-500">
+                  <i className="ri-arrow-right-up-line text-base leading-none" />
+                </span>
+              </Link>
+              <Link
+                to="/sign-in"
+                className="group box-border inline-flex h-12 items-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap cursor-pointer transition-colors duration-300 text-[15px] leading-none font-medium justify-center bg-foreground-950/[0.05] border-foreground-950/20 hover:bg-foreground-950/[0.1] hover:border-primary-500/60 text-foreground-950"
+              >
+                Konto erstellen
+                <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full bg-primary-500 text-background-50">
+                  <i className="ri-user-add-line text-base leading-none" />
+                </span>
+              </Link>
+            </div>
+            <p className="mt-5 text-[13px] text-foreground-500">
+              Schon angemeldet? Dann lade die Seite neu, nachdem du dich eingeloggt hast.
+            </p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
 
   useEffect(() => {
     getBootstrap().then(({ venues: v, courts: cs, settings: s }) => {
