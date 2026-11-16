@@ -81,7 +81,7 @@ async function availability(body: any): Promise<Response> {
 
     const zone = zones
       .filter((z: any) => z.weekdays.includes(weekday))
-      .find((z: any) => z.start_time <= startHHMM && startHHMM < z.end_time);
+      .find((z: any) => z.start_time.slice(0, 5) <= startHHMM && startHHMM < z.end_time.slice(0, 5));
 
     slots.push({ time: startHHMM, available: !isPast && !blocked && !taken, price: zone ? (zone.price_cents * durationMin) / 60 : null });
   }
@@ -138,7 +138,7 @@ async function createBooking(body: any, user: { id: string } | null): Promise<Re
   const weekday = berlinWeekday(date);
   const zone = zones
     .filter((z: any) => z.weekdays.includes(weekday))
-    .find((z: any) => z.start_time <= start_time && start_time < z.end_time);
+    .find((z: any) => z.start_time.slice(0, 5) <= start_time && start_time < z.end_time.slice(0, 5));
   const feeCents = zone?.price_cents ? Math.round((zone.price_cents * dur) / 60) : 0;
 
   for (let attempt = 0; attempt < 3; attempt++) {
