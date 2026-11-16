@@ -19,6 +19,8 @@ export async function POST(req: Request): Promise<Response> {
 
     if (body.action === "bootstrap") return await bootstrap();
     if (body.action === "partners") return await partners();
+    if (body.action === "news") return await news();
+    if (body.action === "events") return await events();
     if (body.action === "court_blocks") return await courtBlocks(body);
     if (body.action === "track") return await track(body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
@@ -48,10 +50,20 @@ async function bootstrap(): Promise<Response> {
   });
 }
 
-/** Блокировки кортов на дату (YYYY-MM-DD, Berlin). */
 async function partners(): Promise<Response> {
   const r = await db().query(`select id, name, link, logo_path, is_active from partners where is_active = true order by sort_order`);
   return json({ ok: true, partners: r.rows });
+}
+
+/** Публикации: новости + активные промо (для #aktuelles). */
+async function news(): Promise<Response> {
+  const p = db();
+  const [postsRes, promoRes, eventsRes] = await Promise.all([
+    p.query(`select id, title, slug, body, image_path, published_at from news_posts where published = true and type = 'news' order by published_at desc nulls last, created_at desc limit 6`),
+    p.query(`select id, title, body, image_path, promo_expires_at from news_posts where published = true and type = 'promo' and (promo_expires_at is null or promo_expires_at > now()) order by published_at desc limit 1`),
+    p.query(`select id, kind, title, participants, starts_at, ends_at, description from events where is_published = true and starts_at >= now() - interval '2 hours' order by starts_at limit 8`),
+  ]);
+  return json({ ok: true, news: postsRes.rows, promo: promoRes.rows[0] ?? null, events: eventsRes.rows });
 }
 
 async function courtBlocks(body: any): Promise<Response> {

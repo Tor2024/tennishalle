@@ -1,5 +1,6 @@
 import { db, json, getUser } from './_lib.js'
 import type { SessionUser } from './_lib.js'
+import type { SessionUser } from './_lib.js'
 
 interface PoolClient { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }
 
@@ -334,6 +335,90 @@ async function deletePartner(body: Record<string, unknown>) {
   return json({ ok: true, message: 'Partner geloescht.' })
 }
 
+// ---------- news / promo posts ----------
+async function postsList() {
+  const r = await db().query(`select * from news_posts order by published_at desc nulls last, created_at desc`)
+  return json({ ok: true, posts: r.rows })
+}
+
+async function savePost(body: Record<string, unknown>, user: SessionUser) {
+  const title = String(body.title ?? '').trim()
+  if (!title) return json({ ok: false, code: 'bad_request', message: 'Titel fehlt.' }, 400)
+  const type = body.type === 'promo' ? 'promo' : 'news'
+  const slugBase = String(body.slug ?? '').trim() || title
+  const slug = slugBase.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || `post-${Date.now()}`
+  const text = String(body.body ?? '').trim() || null
+  const imagePath = String(body.image_path ?? '').trim() || null
+  const published = body.published !== false
+  const promoExpires = typeof body.promo_expires_at === 'string' && body.promo_expires_at ? body.promo_expires_at : null
+  const id = typeof body.id === 'string' && body.id ? body.id : null
+
+  if (id) {
+    const r = await db().query(
+      `update news_posts set title=$1, slug=$2, body=$3, image_path=$4, published=$5, type=$6,
+        promo_expires_at=$7, updated_at=now() where id=$8 returning id`,
+      [title, slug, text, imagePath, published, type, promoExpires, id],
+    )
+    if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Beitrag nicht gefunden.' }, 404)
+    return json({ ok: true, id: r.rows[0].id, message: 'Beitrag gespeichert.' })
+  }
+  const r = await db().query(
+    `insert into news_posts (id, title, slug, body, image_path, published, type, promo_expires_at, published_at)
+     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, case when $5 then now() else null end) returning id`,
+    [title, slug, text, imagePath, published, type, promoExpires],
+  )
+  void user
+  return json({ ok: true, id: r.rows[0].id, message: 'Beitrag angelegt.' })
+}
+
+async function deletePost(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  await db().query(`delete from news_posts where id = $1`, [id])
+  return json({ ok: true, message: 'Beitrag geloescht.' })
+}
+
+// ---------- events ----------
+async function eventsList() {
+  const r = await db().query(`select * from events order by starts_at`)
+  return json({ ok: true, events: r.rows })
+}
+
+async function saveEvent(body: Record<string, unknown>, user: SessionUser) {
+  const title = String(body.title ?? '').trim()
+  const startsAt = String(body.starts_at ?? '').trim()
+  if (!title || !startsAt) return json({ ok: false, code: 'bad_request', message: 'Titel und Beginn sind Pflichtfelder.' }, 400)
+  const kind = ['match', 'tournament', 'training', 'other'].includes(String(body.kind)) ? String(body.kind) : 'other'
+  const participants = String(body.participants ?? '').trim() || null
+  const endsAt = String(body.ends_at ?? '').trim() || null
+  const description = String(body.description ?? '').trim() || null
+  const isPublished = body.is_published !== false
+  const id = typeof body.id === 'string' && body.id ? body.id : null
+
+  if (id) {
+    const r = await db().query(
+      `update events set kind=$1, title=$2, participants=$3, starts_at=$4::timestamptz, ends_at=$5::timestamptz,
+        description=$6, is_published=$7, updated_at=now() where id=$8 returning id`,
+      [kind, title, participants, startsAt, endsAt, description, isPublished, id],
+    )
+    if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Termin nicht gefunden.' }, 404)
+    return json({ ok: true, id: r.rows[0].id, message: 'Termin gespeichert.' })
+  }
+  const r = await db().query(
+    `insert into events (id, kind, title, participants, starts_at, ends_at, description, is_published, created_by)
+     values (gen_random_uuid(), $1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8) returning id`,
+    [kind, title, participants, startsAt, endsAt, description, isPublished, user.id],
+  )
+  return json({ ok: true, id: r.rows[0].id, message: 'Termin angelegt.' })
+}
+
+async function deleteEvent(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  await db().query(`delete from events where id = $1`, [id])
+  return json({ ok: true, message: 'Termin geloescht.' })
+}
+
 // image upload: commits file to GitHub repo (Tor2024/tennishalle) -> auto redeploy -> served as /img/<name>
 const GH_REPO = 'Tor2024/tennishalle'
 const GH_BRANCH = 'main'
@@ -430,6 +515,12 @@ export async function POST(req: Request): Promise<Response> {
       case 'partners': return await partnersList()
       case 'save_partner': return await savePartner(body)
       case 'delete_partner': return await deletePartner(body)
+      case 'posts': return await postsList()
+      case 'save_post': return await savePost(body, auth.user)
+      case 'delete_post': return await deletePost(body)
+      case 'events': return await eventsList()
+      case 'save_event': return await saveEvent(body, auth.user)
+      case 'delete_event': return await deleteEvent(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {

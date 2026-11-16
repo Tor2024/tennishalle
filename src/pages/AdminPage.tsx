@@ -34,7 +34,8 @@ const TABS = [
   { id: 'courts', label: 'Plätze', icon: 'ri-layout-grid-line' },
   { id: 'calendar', label: 'Kalender', icon: 'ri-calendar-2-line' },
   { id: 'bookings', label: 'Buchungen', icon: 'ri-list-check-2' },
-{ id: 'partners', label: 'Partner', icon: 'ri-hand-heart-line' },
+  { id: 'partners', label: 'Partner', icon: 'ri-hand-heart-line' },
+  { id: 'content', label: 'Aktuelles', icon: 'ri-news-line' },
 ] as const
 
 interface Catalog {
@@ -777,8 +778,276 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
   )
 }
 
-function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {
+// ---------- content tab (news / promo / events) ----------
+interface AdminPost { id: string; title: string; slug: string; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null }
+interface AdminEvent { id: string; kind: string; title: string; participants: string | null; starts_at: string; ends_at: string | null; description: string | null; is_published: boolean }
+const EVENT_KINDS = [
+  { id: 'match', label: 'Spiel' },
+  { id: 'tournament', label: 'Turnier' },
+  { id: 'training', label: 'Training' },
+  { id: 'other', label: 'Sonstiges' },
+] as const
+
+function ContentTab() {
+  const [posts, setPosts] = useState<AdminPost[]>([])
+  const [events, setEvents] = useState<AdminEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [editingPost, setEditingPost] = useState<AdminPost | null | 'new'>(null)
+  const [editingEvent, setEditingEvent] = useState<AdminEvent | null | 'new'>(null)
+
+  const load = () => {
+    setLoading(true)
+    Promise.all([
+      apiAdmin<{ ok: boolean; posts?: AdminPost[]; message?: string }>('posts'),
+      apiAdmin<{ ok: boolean; events?: AdminEvent[]; message?: string }>('events'),
+    ])
+      .then(([p, e]) => {
+        if (p.ok && p.posts) setPosts(p.posts)
+        else setError(p.message ?? 'Fehler beim Laden.')
+        if (e.ok && e.events) setEvents(e.events)
+      })
+      .catch(() => setError('Netzwerkfehler.'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const postCard = (p: AdminPost) => (
+    <div key={p.id} className={`ro-card p-5 ${p.published ? '' : 'opacity-50'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="ro-eyebrow text-primary-500">{p.type === 'promo' ? 'Angebot' : 'News'}</p>
+          <p className="ro-card-title !text-[16px] mt-1 truncate">{p.title}</p>
+        </div>
+        {p.image_path && <img src={p.image_path} alt="" className="w-14 h-14 rounded-lg object-cover ro-frame shrink-0" />}
+      </div>
+      {p.body && <p className="text-[13px] text-foreground-600 mt-2 line-clamp-2">{p.body}</p>}
+      <p className="text-[11px] text-foreground-500 mt-1">
+        {p.published ? 'Veröffentlicht' : 'Entwurf'}
+        {p.type === 'promo' && p.promo_expires_at ? ` · bis ${new Date(p.promo_expires_at).toLocaleDateString('de-DE')}` : ''}
+      </p>
+      <div className="mt-3 flex gap-2">
+        <button onClick={() => setEditingPost(p)} className="h-8 px-3 rounded-full border border-foreground-950/20 text-[12px] hover:border-primary-500/60 cursor-pointer"><i className="ri-edit-line" />Bearbeiten</button>
+        <ConfirmButton
+          label="Löschen"
+          confirmLabel="Wirklich löschen?"
+          cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60"
+          onConfirm={async () => {
+            const r = await apiAdmin<{ ok: boolean; message?: string }>('delete_post', { id: p.id })
+            setMessage(r.ok ? r.message ?? 'Geloescht.' : r.message ?? 'Fehler')
+            await load()
+          }}
+        />
+      </div>
+    </div>
+  )
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="ro-h2 !text-[28px]">Aktuelles</h1>
+        <div className="flex gap-2">
+          <button onClick={() => setEditingPost('new')} className="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 cursor-pointer"><i className="ri-add-line" />Beitrag</button>
+          <button onClick={() => setEditingEvent('new')} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer"><i className="ri-add-line" />Termin</button>
+        </div>
+      </div>
+      {message && <p className="mt-4 rounded-md border border-primary-500/40 bg-primary-500/10 px-4 py-3 text-[14px] text-primary-400">{message}</p>}
+      {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-4 py-3 text-[14px] text-red-300">{error}</p>}
+      {loading ? (
+        <p className="mt-8 text-[14px] text-foreground-600">Inhalte werden geladen…</p>
+      ) : (
+        <>
+          <p className="ro-eyebrow text-foreground-600 mt-8 mb-3">News & Angebote ({posts.length})</p>
+          {posts.length === 0 ? (
+            <p className="text-[14px] text-foreground-600">Noch keine Beiträge angelegt.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{posts.map(postCard)}</div>
+          )}
+          <p className="ro-eyebrow text-foreground-600 mt-10 mb-3">Termine ({events.length})</p>
+          {events.length === 0 ? (
+            <p className="text-[14px] text-foreground-600">Noch keine Termine angelegt.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {events.map((e) => (
+                <div key={e.id} className={`ro-card p-5 ${e.is_published ? '' : 'opacity-50'}`}>
+                  <p className="ro-eyebrow text-primary-500">{EVENT_KINDS.find((k) => k.id === e.kind)?.label ?? e.kind}</p>
+                  <p className="ro-card-title !text-[16px] mt-1 truncate">{e.title}</p>
+                  <p className="text-[13px] text-foreground-600 mt-1">{new Date(e.starts_at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin' })}</p>
+                  {e.participants && <p className="text-[12px] text-foreground-500 mt-0.5 truncate">{e.participants}</p>}
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => setEditingEvent(e)} className="h-8 px-3 rounded-full border border-foreground-950/20 text-[12px] hover:border-primary-500/60 cursor-pointer"><i className="ri-edit-line" />Bearbeiten</button>
+                    <ConfirmButton
+                      label="Löschen"
+                      confirmLabel="Wirklich löschen?"
+                      cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60"
+                      onConfirm={async () => {
+                        const r = await apiAdmin<{ ok: boolean; message?: string }>('delete_event', { id: e.id })
+                        setMessage(r.ok ? r.message ?? 'Geloescht.' : r.message ?? 'Fehler')
+                        await load()
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {editingPost && <PostModal post={editingPost === 'new' ? null : editingPost} onClose={() => setEditingPost(null)} onSaved={(msg) => { setMessage(msg); setEditingPost(null); load() }} />}
+      {editingEvent && <EventModal event={editingEvent === 'new' ? null : editingEvent} onClose={() => setEditingEvent(null)} onSaved={(msg) => { setMessage(msg); setEditingEvent(null); load() }} />}
+    </div>
+  )
+}
+
+function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose: () => void; onSaved: (msg: string) => void }) {
   const [form, setForm] = useState({
+    title: post?.title ?? '',
+    body: post?.body ?? '',
+    type: (post?.type ?? 'news') as 'news' | 'promo',
+    image_path: post?.image_path ?? '',
+    published: post?.published ?? true,
+    promo_expires_at: post?.promo_expires_at ? post.promo_expires_at.slice(0, 10) : '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  const onFile = async (file: File) => {
+    if (!file) return
+    setError('')
+    setUploading(true)
+    try {
+      const { filename, data } = await fileToUploadData(file, 780)
+      const r = await apiAdmin<{ ok: boolean; path?: string; message?: string }>('upload_image', { filename, data })
+      if (r.ok && r.path) set('image_path', r.path)
+      else setError(r.message ?? 'Upload fehlgeschlagen.')
+    } catch {
+      setError('Upload fehlgeschlagen.')
+    }
+    setUploading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">{post ? 'Beitrag bearbeiten' : 'Neuer Beitrag'}</p>
+        <h3 className="mt-2 ro-card-title">{post ? post.title : 'Beitrag anlegen'}</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        <div className="mt-5 flex gap-2">
+          {(['news', 'promo'] as const).map((t) => (
+            <button key={t} onClick={() => set('type', t)} className={`h-9 px-4 rounded-full text-[13px] font-medium cursor-pointer border ${form.type === t ? 'bg-primary-500 border-primary-500 text-background-50' : 'border-foreground-950/20 text-foreground-700'}`}>
+              {t === 'news' ? 'News' : 'Angebot'}
+            </button>
+          ))}
+        </div>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Titel *</span>
+          <input value={form.title} onChange={(e) => set('title', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Winterhallen-Plan ist da" /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Text</span>
+          <textarea value={form.body} onChange={(e) => set('body', e.target.value)} rows={4} className={`${ADMIN_FIELD_CLS} resize-y`} placeholder="Nachrichtentext…" /></label>
+        <div className="mt-4 flex items-center gap-3">
+          <label className={`inline-flex h-9 items-center gap-2 rounded-full border border-foreground-950/20 px-4 text-[12px] font-medium cursor-pointer hover:border-primary-500/60 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+            {uploading ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-upload-2-line" />}
+            {uploading ? 'Wird hochgeladen…' : 'Bild hochladen'}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
+          </label>
+          {form.image_path && <img src={form.image_path} alt="" className="w-12 h-12 rounded-lg object-cover ro-frame" />}
+        </div>
+        {form.type === 'promo' && (
+          <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Angebot gültig bis (optional)</span>
+            <input type="date" value={form.promo_expires_at} onChange={(e) => set('promo_expires_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
+        )}
+        <label className="mt-4 flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
+          <input type="checkbox" checked={form.published} onChange={(e) => set('published', e.target.checked)} className="accent-[var(--color-primary-500)]" />
+          Veröffentlicht (sichtbar auf der Website)
+        </label>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
+          <ConfirmButton
+            label={post ? 'Speichern' : 'Anlegen'}
+            confirmLabel={post ? 'Wirklich speichern?' : 'Wirklich anlegen?'}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 border border-primary-500"
+            busy={busy}
+            onConfirm={async () => {
+              setBusy(true); setError('')
+              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_post', { ...form, id: post?.id, promo_expires_at: form.promo_expires_at ? `${form.promo_expires_at}T23:59:59Z` : null })
+              setBusy(false)
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              else setError(r.message ?? 'Fehler')
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EventModal({ event, onClose, onSaved }: { event: AdminEvent | null; onClose: () => void; onSaved: (msg: string) => void }) {
+  const [form, setForm] = useState({
+    title: event?.title ?? '',
+    kind: event?.kind ?? 'match',
+    participants: event?.participants ?? '',
+    starts_at: event?.starts_at ? event.starts_at.slice(0, 16) : '',
+    ends_at: event?.ends_at ? event.ends_at.slice(0, 16) : '',
+    description: event?.description ?? '',
+    is_published: event?.is_published ?? true,
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">{event ? 'Termin bearbeiten' : 'Neuer Termin'}</p>
+        <h3 className="mt-2 ro-card-title">{event ? event.title : 'Termin anlegen'}</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Titel *</span>
+          <input value={form.title} onChange={(e) => set('title', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Vereinsmeisterschaft" /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Art</span>
+          <select value={form.kind} onChange={(e) => set('kind', e.target.value)} className={ADMIN_FIELD_CLS}>
+            {EVENT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+          </select></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Teilnehmer / Ort (optional)</span>
+          <input value={form.participants} onChange={(e) => set('participants', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Halle, Platz 1 · 18:00" /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Beginn *</span>
+          <input type="datetime-local" value={form.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Ende (optional)</span>
+          <input type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Beschreibung</span>
+          <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} className={`${ADMIN_FIELD_CLS} resize-y`} /></label>
+        <label className="mt-4 flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
+          <input type="checkbox" checked={form.is_published} onChange={(e) => set('is_published', e.target.checked)} className="accent-[var(--color-primary-500)]" />
+          Veröffentlicht
+        </label>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
+          <ConfirmButton
+            label={event ? 'Speichern' : 'Anlegen'}
+            confirmLabel={event ? 'Wirklich speichern?' : 'Wirklich anlegen?'}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 border border-primary-500"
+            busy={busy}
+            onConfirm={async () => {
+              setBusy(true); setError('')
+              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_event', {
+                ...form,
+                id: event?.id,
+                starts_at: form.starts_at ? `${form.starts_at}:00Z` : '',
+                ends_at: form.ends_at ? `${form.ends_at}:00Z` : null,
+              })
+              setBusy(false)
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              else setError(r.message ?? 'Fehler')
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {  const [form, setForm] = useState({
     name: court?.name ?? '',
     venue_id: court?.venue_id ?? venues[0]?.id ?? '',
     surface: court?.surface ?? '',
@@ -1356,6 +1625,7 @@ export function AdminPage() {
           {tab === 'courts' && <CourtsTab catalog={catalog} onCatalogReload={() => getBootstrap().then(setCatalog).catch(() => {})} />}          {tab === 'calendar' && <CalendarTab catalog={catalog} />}
           {tab === 'bookings' && <BookingsTab catalog={catalog} />}
 {tab === 'partners' && <PartnersTab />}
+{tab === 'content' && <ContentTab />}
         </main>
       </div>
     </div>
