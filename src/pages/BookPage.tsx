@@ -5,8 +5,7 @@ import { Footer } from '../components/Footer'
 import {
   api,
   formatPrice,
-  getCourts,
-  getClubSettings,
+  getBootstrap,
   getCourtBlocks,
   hhmmToMin,
   minToHHMM,
@@ -16,7 +15,7 @@ import {
   type Venue,
   type DayOverview,
   type SlotInfo,
-} from '../lib/supabase'
+} from '../lib/api'
 
 import { addDays, dateShort, todayInTz } from '../lib/dates'
 
@@ -941,10 +940,10 @@ export default function BookPage() {
   const [result, setResult] = useState<NonNullable<CreateResp['reservation']> | null>(null)
 
   useEffect(() => {
-    Promise.all([getCourts(), getClubSettings()]).then(([cv, s]) => {
+    getBootstrap().then(({ venues: v, courts: cs, settings: s }) => {
       // merge DB courts + hardcoded outdoor courts (Platz 3, Platz 4)
-      const allCourts = [...cv.courts, ...OUTDOOR_COURTS]
-      setVenues(cv.venues)
+      const allCourts = [...cs, ...OUTDOOR_COURTS]
+      setVenues(v)
       setCourts(allCourts)
       setSettings(s)
       setLoading(false)

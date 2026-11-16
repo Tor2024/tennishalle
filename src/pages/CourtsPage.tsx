@@ -8,7 +8,7 @@ import { CtaBand } from '../components/CtaBand'
 import { Belegungsplan } from '../components/Belegungsplan'
 import { Aktuelles } from '../components/Aktuelles'
 import { Partner } from '../components/Partner'
-import { getCourts, type Court, type Venue } from '../lib/supabase'
+import { getBootstrap, type Court, type Venue } from '../lib/api'
 
 function Price({ court }: { court: Court }) {
   return (
@@ -207,7 +207,7 @@ function CourtsPage() {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    getCourts()
+    getBootstrap()
       .then((r) => {
         setCourts([...r.courts, ...OUTDOOR_COURTS])
         setVenues(r.venues)

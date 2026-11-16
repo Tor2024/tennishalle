@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { apiAuth } from '../lib/api'
 
 export function Nav() {
   const [solid, setSolid] = useState(false)
@@ -17,15 +17,14 @@ export function Nav() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setAuthed(!!s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
+    apiAuth<{ ok: boolean }>('me').then((r) => setAuthed(!!r?.ok))
+  }, [location])
 
   useEffect(() => setOpen(false), [location])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await apiAuth('signout')
+    setAuthed(false)
     navigate('/')
   }
 

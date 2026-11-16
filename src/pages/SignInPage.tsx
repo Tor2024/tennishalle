@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Nav } from '../components/Nav'
-import { api, supabase } from '../lib/supabase'
+import { apiAuth, type AppUser } from '../lib/api'
 
 // structure 1:1 from prod bundle (uf component in site.js)
 const INPUT_CLS =
@@ -18,15 +18,11 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // already signed in → redirect (admin check via booking-api 'me' may 404 → /account)
+  // already signed in → redirect (admin/owner → /admin)
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) return
-      try {
-        const me = await api<{ ok?: boolean; role?: string }>('me', {})
-        navigate(me?.ok && me.role ? '/admin' : '/account')
-      } catch {
-        navigate('/account')
+    apiAuth<{ ok: boolean; user?: AppUser }>('me').then((r) => {
+      if (r?.ok && r.user) {
+        navigate(r.user.role === 'admin' || r.user.role === 'owner' ? '/admin' : '/account')
       }
     })
   }, [navigate])
@@ -39,27 +35,25 @@ export default function SignInPage() {
     setSuccess(null)
     try {
       if (mode === 'up') {
-        const { data, error: err } = await supabase.auth.signUp({
+        const r = await apiAuth<{ ok: boolean; user?: AppUser; error?: string; message?: string }>('signup', {
           email,
           password,
-          options: { data: { full_name: fullName } },
+          full_name: fullName,
         })
-        if (err) throw err
-        if (!data.session) {
+        if (!r.ok) throw new Error(r.error ?? r.message ?? 'Registrierung fehlgeschlagen.')
+        if (!r.user) {
           setSuccess('Konto erfolgreich erstellt! Du kannst dich jetzt anmelden.')
           setMode('in')
         } else {
           navigate('/account')
         }
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-        if (err) throw err
-        try {
-          const me = await api<{ ok?: boolean; role?: string }>('me', {})
-          navigate(me?.ok && me.role ? '/admin' : '/account')
-        } catch {
-          navigate('/account')
-        }
+        const r = await apiAuth<{ ok: boolean; user?: AppUser; error?: string; message?: string }>('signin', {
+          email,
+          password,
+        })
+        if (!r.ok) throw new Error(r.error ?? r.message ?? 'Anmeldung fehlgeschlagen.')
+        navigate(r.user && (r.user.role === 'admin' || r.user.role === 'owner') ? '/admin' : '/account')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.')

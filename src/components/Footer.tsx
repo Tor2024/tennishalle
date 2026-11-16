@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { apiData } from '../lib/api'
 
 // structure and classes verbatim from the prod bundle (Ru footer component)
 export function Footer() {
   const [settings, setSettings] = useState<{ address?: string; contact_phone?: string; contact_email?: string } | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('club_settings')
-      .select('address,contact_phone,contact_email')
-      .limit(1)
-      .then(({ data }) => setSettings((data?.[0] as never) ?? null))
+    apiData<{ ok: boolean; settings?: { address?: string; contact_phone?: string; contact_email?: string } | null }>('bootstrap')
+      .then((r) => setSettings(r.settings ?? null))
+      .catch(() => {})
   }, [])
 
   return (

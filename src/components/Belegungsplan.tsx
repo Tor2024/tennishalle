@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, getCourts, type Court, type DayOverview, type SlotInfo } from '../lib/supabase'
+import { api, getBootstrap, type Court, type DayOverview, type SlotInfo } from '../lib/api'
 
 // Outdoor courts hardcoded (no DB rows) — same as CourtsPage
 const OUTDOOR_COURTS: Court[] = [
@@ -95,7 +95,7 @@ export function Belegungsplan() {
       try {
         const [ov, cv] = await Promise.all([
           api<{ ok: boolean; days?: DayOverview[] }>('month_overview', { from: today, days: MAX_DAYS }),
-          getCourts(),
+          getBootstrap(),
         ])
         if (!alive) return
         const map: Record<string, DayOverview> = {}
