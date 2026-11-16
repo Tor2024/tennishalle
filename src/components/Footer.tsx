@@ -51,7 +51,7 @@ export function Footer() {
         </div>
         <nav className="md:col-span-4 grid grid-cols-2 gap-6 text-sm">
           <div className="flex flex-col">
-            <p className="eyebrow text-foreground-500 mb-3">Bereiche</p>
+            <p className="eyebrow text-primary-500 mb-3">Bereiche</p>
             <Link to="/#belegung" className="footer-link">
               Belegungsplan
             </Link>
@@ -69,7 +69,7 @@ export function Footer() {
             </Link>
           </div>
           <div className="flex flex-col">
-            <p className="eyebrow text-foreground-500 mb-3">Konto</p>
+            <p className="eyebrow text-primary-500 mb-3">Konto</p>
             <Link to="/book" className="footer-link">
               Platz buchen
             </Link>
