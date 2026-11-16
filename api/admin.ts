@@ -20,7 +20,7 @@ function isTs(v: unknown): v is string {
 
 async function stats(_body: Record<string, unknown>) {
   // KPI: bookings + revenue per period, unique customers, cancellations
-  const kpi = await db.query<{
+  const kpi = await db().query<{
     b_today: string; r_today: string; b_week: string; r_week: string;
     b_month: string; r_month: string; b_year: string; r_year: string;
     b_total: string; r_total: string; c_total: string; c_cancelled: string; customers: string;
@@ -41,7 +41,7 @@ async function stats(_body: Record<string, unknown>) {
     from reservations where start_at >= now() - interval '1 year'`,
   )
   // per-day last 30 days (bookings + revenue + views)
-  const perDay = await db.query<{ day: string; bookings: string; revenue: string; views: string }>(
+  const perDay = await db().query<{ day: string; bookings: string; revenue: string; views: string }>(
     `with days as (
        select generate_series(date_trunc('day', now() at time zone 'Europe/Berlin') - interval '29 days', date_trunc('day', now() at time zone 'Europe/Berlin'), interval '1 day') as d
      )
@@ -52,7 +52,7 @@ async function stats(_body: Record<string, unknown>) {
      from days order by d`,
   )
   // per-month last 12 months
-  const perMonth = await db.query<{ month: string; bookings: string; revenue: string }>(
+  const perMonth = await db().query<{ month: string; bookings: string; revenue: string }>(
     `with months as (
        select generate_series(date_trunc('month', now() at time zone 'Europe/Berlin') - interval '11 months', date_trunc('month', now() at time zone 'Europe/Berlin'), interval '1 month') as m
      )
@@ -62,30 +62,30 @@ async function stats(_body: Record<string, unknown>) {
      from months order by m`,
   )
   // weekday distribution (0=Sunday)
-  const perWeekday = await db.query<{ weekday: number; bookings: string }>(
+  const perWeekday = await db().query<{ weekday: number; bookings: string }>(
     `select extract(dow from start_at at time zone 'Europe/Berlin')::int as weekday, count(*) as bookings
      from reservations where status <> 'cancelled' and start_at >= now() - interval '1 year'
      group by 1 order by 1`,
   )
   // popular hours (start hour)
-  const perHour = await db.query<{ hour: number; bookings: string }>(
+  const perHour = await db().query<{ hour: number; bookings: string }>(
     `select extract(hour from start_at at time zone 'Europe/Berlin')::int as hour, count(*) as bookings
      from reservations where status <> 'cancelled' and start_at >= now() - interval '1 year'
      group by 1 order by 1`,
   )
   // court share
-  const perCourt = await db.query<{ court_id: string; name: string; bookings: string; revenue: string }>(
+  const perCourt = await db().query<{ court_id: string; name: string; bookings: string; revenue: string }>(
     `select c.id as court_id, c.name, count(r.id) as bookings,
        coalesce(sum(r.fee_cents) filter (where r.status <> 'cancelled'), 0) as revenue
      from courts c left join reservations r on r.court_id = c.id and r.start_at >= now() - interval '1 year'
      where c.is_active group by c.id, c.name order by c.sort_order`,
   )
   // status counts
-  const statuses = await db.query<{ status: string; cnt: string }>(
+  const statuses = await db().query<{ status: string; cnt: string }>(
     `select status, count(*) as cnt from reservations group by 1`,
   )
   // booking lead time (created_at -> start_at) buckets
-  const lead = await db.query<{ lead_bucket: string; cnt: string }>(
+  const lead = await db().query<{ lead_bucket: string; cnt: string }>(
     `select case
        when lead < 1 then '<1 Tag' when lead < 3 then '1-2 Tage' when lead < 7 then '3-6 Tage'
        when lead < 14 then '1 Woche' when lead < 30 then '2-4 Wochen' else '>1 Monat' end as lead_bucket,
@@ -94,13 +94,13 @@ async function stats(_body: Record<string, unknown>) {
      group by 1`,
   )
   // top customers
-  const topCustomers = await db.query<{ customer_name: string; customer_email: string; bookings: string; revenue: string }>(
+  const topCustomers = await db().query<{ customer_name: string; customer_email: string; bookings: string; revenue: string }>(
     `select customer_name, customer_email, count(*) as bookings,
        coalesce(sum(fee_cents) filter (where status <> 'cancelled'), 0) as revenue
      from reservations group by customer_name, customer_email order by bookings desc, revenue desc limit 8`,
   )
   // utilization: booked confirmed slot-halfhours in next 30d vs open slots from operating_hours
-  const util = await db.query<{ open_slots: string; booked_slots: string }>(
+  const util = await db().query<{ open_slots: string; booked_slots: string }>(
     `with open as (
        select count(*) as n from operating_hours oh, generate_series(0, 29) g
        where oh.weekday = extract(dow from (current_date + g) at time zone 'Europe/Berlin')::int
@@ -138,7 +138,7 @@ async function bookings(body: Record<string, unknown>) {
   const to = typeof body.to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.to) ? body.to : null
   const status = typeof body.status === 'string' && body.status ? body.status : null
   const courtId = typeof body.court_id === 'string' && body.court_id ? body.court_id : null
-  const rows = await db.query(
+  const rows = await db().query(
     `select r.*, c.name as court_name, v.name as venue_name, c.court_number
      from reservations r join courts c on c.id = r.court_id join venues v on v.id = c.venue_id
      where ($1::timestamptz is null or r.start_at >= $1) and ($2::timestamptz is null or r.start_at < $2)
@@ -161,7 +161,7 @@ async function createBlock(body: Record<string, unknown>) {
     return json({ ok: false, code: 'bad_request', message: 'Bitte alle Pflichtfelder ausfuellen.' }, 400)
   }
   const user = arguments[2] as SessionUser
-  await db.query(
+  await db().query(
     `insert into court_blocks (court_id, starts_at, ends_at, reason, created_by)
      values ($1, $2::timestamptz, $3::timestamptz, $4, $5)`,
     [courtId, `${date}T${startTime}:00`, `${date}T${endTime}:00`, reason, user.id],
@@ -172,7 +172,7 @@ async function createBlock(body: Record<string, unknown>) {
 async function deleteBlock(body: Record<string, unknown>) {
   const id = typeof body.id === 'string' ? body.id : ''
   if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
-  await db.query(`delete from court_blocks where id = $1`, [id])
+  await db().query(`delete from court_blocks where id = $1`, [id])
   return json({ ok: true })
 }
 
@@ -183,12 +183,12 @@ async function dayData(body: Record<string, unknown>) {
   const to = typeof body.to === 'string' ? body.to : ''
   if (!isTs(from) || !isTs(to)) return json({ ok: false, code: 'bad_request', message: 'Ungueltiger Zeitraum.' }, 400)
   const [reservations, blocks] = await Promise.all([
-    db.query(
+    db().query(
       `select r.*, c.name as court_name, c.court_number from reservations r join courts c on c.id = r.court_id
        where r.status <> 'cancelled' and r.end_at > $1 and r.start_at < $2 order by r.start_at`,
       [from, to],
     ),
-    db.query(
+    db().query(
       `select b.*, c.name as court_name from court_blocks b join courts c on c.id = b.court_id
        where b.ends_at > $1 and b.starts_at < $2 order by b.starts_at`,
       [from, to],
