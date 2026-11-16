@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiAuth } from '../lib/api'
 
@@ -21,8 +21,19 @@ export function Nav() {
   const [authed, setAuthed] = useState(false)
   const [userName, setUserName] = useState('')
   const [activeSection, setActiveSection] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [menuOpen])
 
   useEffect(() => {
     const onScroll = () => setSolid(window.scrollY > 8)
@@ -108,25 +119,40 @@ export function Nav() {
             )
           })}
           {authed ? (
-            <>
-              <Link
-                to="/account"
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(!menuOpen)}
+                aria-expanded={menuOpen}
                 className="flex items-center gap-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors text-foreground-800 hover:text-primary-500"
               >
                 <span className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-500/15 text-primary-500">
                   <i className="ri-user-3-line text-sm leading-none" />
                 </span>
                 {userName || 'Mein Konto'}
-              </Link>
-              <button
-                type="button"
-                onClick={signOut}
-                className="flex items-center gap-1.5 relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors text-foreground-800 hover:text-secondary-300"
-              >
-                <i className="ri-logout-box-r-line text-base leading-none" />
-                Abmelden
+                <i className={`text-base leading-none transition-transform duration-200 ${menuOpen ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'}`} />
               </button>
-            </>
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-3 min-w-[200px] rounded-xl border border-foreground-950/10 bg-background-50 shadow-xl shadow-foreground-950/10 py-2 z-50">
+                  <Link
+                    to="/account"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-foreground-800 hover:text-primary-500 hover:bg-foreground-950/[0.04] cursor-pointer transition-colors"
+                  >
+                    <i className="ri-user-3-line text-base leading-none" />
+                    Mein Konto
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => { setMenuOpen(false); signOut() }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-foreground-800 hover:text-secondary-300 hover:bg-foreground-950/[0.04] cursor-pointer transition-colors"
+                  >
+                    <i className="ri-logout-box-r-line text-base leading-none" />
+                    Abmelden
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <NavLink to="/sign-in" active={false}>
               Anmelden
