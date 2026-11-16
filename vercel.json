@@ -4,11 +4,5 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
-  "rewrites": [
-    { "source": "/book", "destination": "/index.html" },
-    { "source": "/sign-in", "destination": "/index.html" },
-    { "source": "/account", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
