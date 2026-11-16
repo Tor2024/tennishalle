@@ -3,7 +3,7 @@ import { db, json, getUser, createSession, destroySession, hashPassword, verifyP
 
 export const config = { runtime: "nodejs" };
 
-export default async function handler(req: Request): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: {
