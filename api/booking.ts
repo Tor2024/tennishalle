@@ -288,12 +288,11 @@ async function myBookings(body: any, user: { id: string } | null): Promise<Respo
       `select * from reservations where customer_user_id = $1 order by start_at desc`, [user.id]);
     // price-change notices: price change of this court between booking creation and play date
     const changes = await p.query(
-      `select distinct on (l.court_id, date(r.start_at)) l.court_id, date(r.start_at) as play_day, l.changed_at, l.old_price_cents, l.new_price_cents, l.zone_label
+      `select distinct on (l.court_id, to_char(res.start_at at time zone 'Europe/Berlin', 'YYYY-MM-DD')) l.court_id, to_char(res.start_at at time zone 'Europe/Berlin', 'YYYY-MM-DD') as play_day, l.changed_at, l.old_price_cents, l.new_price_cents, l.zone_label
        from price_change_log l
        join reservations res on res.court_id = l.court_id and res.customer_user_id = $1
-       join reservations r on r.id = res.id
        where l.changed_at > res.created_at and l.changed_at < res.start_at
-       order by l.court_id, date(r.start_at), l.changed_at desc`,
+       order by l.court_id, to_char(res.start_at at time zone 'Europe/Berlin', 'YYYY-MM-DD'), l.changed_at desc`,
       [user.id]);
     const notices: Record<string, any> = {};
     for (const c of changes.rows as any[]) {
