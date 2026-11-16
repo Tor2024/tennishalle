@@ -337,7 +337,10 @@ async function deletePartner(body: Record<string, unknown>) {
 
 // ---------- news / promo posts ----------
 async function postsList() {
-  const r = await db().query(`select * from news_posts order by published_at desc nulls last, created_at desc`)
+  const r = await db().query(
+    `select p.*, u.full_name as author_name from news_posts p left join app_users u on u.id = p.created_by
+      order by p.published_at desc nulls last, p.created_at desc`,
+  )
   return json({ ok: true, posts: r.rows })
 }
 
@@ -363,9 +366,9 @@ async function savePost(body: Record<string, unknown>, user: SessionUser) {
     return json({ ok: true, id: r.rows[0].id, message: 'Beitrag gespeichert.' })
   }
   const r = await db().query(
-    `insert into news_posts (id, title, slug, body, image_path, published, type, promo_expires_at, published_at)
-     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, case when $5 then now() else null end) returning id`,
-    [title, slug, text, imagePath, published, type, promoExpires],
+    `insert into news_posts (id, title, slug, body, image_path, published, type, promo_expires_at, published_at, created_by)
+     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, case when $5 then now() else null end, $8) returning id`,
+    [title, slug, text, imagePath, published, type, promoExpires, user.id],
   )
   void user
   return json({ ok: true, id: r.rows[0].id, message: 'Beitrag angelegt.' })

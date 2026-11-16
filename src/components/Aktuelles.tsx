@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { apiData } from '../lib/api'
 import { Reveal } from './Reveal'
 
-interface NewsRow { id: string; title: string; slug: string; body: string | null; image_path: string | null; published_at: string | null }
-interface PromoRow { id: string; title: string; body: string | null; promo_expires_at: string | null }
+interface NewsRow { id: string; title: string; slug: string; body: string | null; image_path: string | null; published_at: string | null; author_name?: string | null }
+interface PromoRow { id: string; title: string; body: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null }
 interface EventRow { id: string; kind: string; title: string; participants: string | null; starts_at: string; description: string | null }
 
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
@@ -26,6 +26,13 @@ function dayMon(iso: string): { day: string; mon: string } {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return { day: '–', mon: '' }
   return { day: String(d.getUTCDate()).padStart(2, '0'), mon: MON[d.getUTCMonth()] ?? '' }
+}
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/Berlin' })
 }
 
 // structure verbatim from prod bundle home.js (#aktuelles template); data from DB with static fallback
@@ -66,22 +73,40 @@ export function Aktuelles() {
           </div>
           <div className="hm-news-layout">
             <div className="hm-news-cards">
-              {newsList.map((n) => (
+              {newsList.map((n) => {
+                const meta = [fmtDate(n.published_at), n.author_name].filter(Boolean).join(' · ')
+                return (
                 <article key={n.id} className="ro-card hm-news-card">
                   <p className="ro-eyebrow text-primary-500">Verein</p>
                   <h3 className="ro-card-title ro-grad-lime mt-2">{n.title}</h3>
                   {n.body && <p className="hm-news-text">{n.body}</p>}
+                  {meta && (
+                    <p className="mt-3 text-xs text-foreground-600 flex items-center gap-1.5">
+                      <i className="ri-time-line text-[13px]" />
+                      {meta}
+                    </p>
+                  )}
                   <a href="#court-list" className="hm-textlink">
                     Zu den Plätzen <i className="ri-arrow-right-line" />
                   </a>
                 </article>
-              ))}
+                )
+              })}
             </div>
             {promo && (
               <div className="hm-promo-card">
                 <p className="hm-promo-pill">Angebot der Woche</p>
                 <p className="hm-promo-title">{promo.title}</p>
                 {promo.body && <p className="hm-promo-sub">{promo.body}</p>}
+                {(() => {
+                  const meta = [fmtDate(promo.published_at), promo.author_name].filter(Boolean).join(' · ')
+                  return meta ? (
+                    <p className="text-xs opacity-70 flex items-center gap-1.5">
+                      <i className="ri-time-line text-[13px]" />
+                      {meta}
+                    </p>
+                  ) : null
+                })()}
                 <Link to="/book" className="hm-btn hm-btn-lime">
                   Jetzt Slots sichern <i className="ri-arrow-right-up-line" />
                 </Link>
