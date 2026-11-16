@@ -148,7 +148,7 @@ async function bookings(body: Record<string, unknown>) {
      order by r.start_at desc limit 500`,
     [from ? `${from}T00:00:00Z` : null, to ? `${to}T23:59:59Z` : null, status, courtId],
   )
-  return json({ ok: true, reservations: rows })
+  return json({ ok: true, reservations: rows.rows })
 }
 
 /* ---------- blocks (create/delete) ---------- */
