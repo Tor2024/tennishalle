@@ -83,6 +83,7 @@ export function Nav() {
     await apiAuth('signout')
     setAuthed(false)
     setUserName('')
+    window.dispatchEvent(new Event('th-auth-change'))
     navigate('/')
   }
 

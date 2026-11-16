@@ -15,11 +15,16 @@ export function Footer() {
       .catch(() => {})
   }, [])
 
-  // re-check auth on every route change (sign-in/sign-out via Nav must update the footer)
+  // re-check auth on route change AND on explicit auth-change events (Nav signout while already on /)
   useEffect(() => {
-    apiAuth<{ ok: boolean }>('me')
-      .then((r) => setAuthed(!!r?.ok))
-      .catch(() => setAuthed(false))
+    const check = () => {
+      apiAuth<{ ok: boolean }>('me')
+        .then((r) => setAuthed(!!r?.ok))
+        .catch(() => setAuthed(false))
+    }
+    check()
+    window.addEventListener('th-auth-change', check)
+    return () => window.removeEventListener('th-auth-change', check)
   }, [location.pathname])
 
   const signOut = () => {
