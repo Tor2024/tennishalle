@@ -464,7 +464,7 @@ function ConfirmButton({ label, confirmLabel, onConfirm, cls, busy }: { label: s
   )
 }
 
-function CourtsTab({ catalog, onCatalogReload }: { catalog: Catalog; onCatalogReload: () => void }) {
+function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () => void }) {
   const [courts, setCourts] = useState<AdminCourt[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
   const [zones, setZones] = useState<Zone[]>([])
@@ -1154,8 +1154,7 @@ export function AdminPage() {
 
         <main className="px-4 md:px-10 py-6 md:py-10">
           {tab === 'overview' && <OverviewTab catalog={catalog} />}
-          {tab === 'courts' && <CourtsTab catalog={catalog} onCatalogReload={() => getBootstrap().then(setCatalog).catch(() => {})} />}
-          {tab === 'calendar' && <CalendarTab catalog={catalog} />}
+          {tab === 'courts' && <CourtsTab catalog={catalog} onCatalogReload={() => getBootstrap().then(setCatalog).catch(() => {})} />}          {tab === 'calendar' && <CalendarTab catalog={catalog} />}
           {tab === 'bookings' && <BookingsTab catalog={catalog} />}
         </main>
       </div>
