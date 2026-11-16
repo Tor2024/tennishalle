@@ -64,9 +64,13 @@ export function Footer() {
           Bezahlung direkt im Verein, nicht online.
         </p>
       </div>
-      <p aria-hidden="true" className="mt-10 md:mt-14 px-2 font-wordmark footer-wordmark text-background-200 select-none text-center">
-        TENNISHALLE
-      </p>
+      {/* secret admin entrance — invisible link over the wordmark */}
+      <div className="relative">
+        <p aria-hidden="true" className="mt-10 md:mt-14 px-2 font-wordmark footer-wordmark text-background-200 select-none text-center">
+          TENNISHALLE
+        </p>
+        <Link to="/admin" aria-label="Admin" className="absolute inset-x-0 -top-4 bottom-0 opacity-0" />
+      </div>
       <div className="px-4 md:px-10 py-5 border-t border-background-300/50 flex flex-col sm:flex-row justify-between gap-2 text-xs text-foreground-600">
         <span>© 2026 TENNISHALLE</span>
         <span>Tennis Hallen</span>
