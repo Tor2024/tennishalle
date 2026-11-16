@@ -951,18 +951,19 @@ export default function BookPage() {
       // URL prefill
       const pCourt = params.get('court')
       const pDate = params.get('date')
+      const pTime = params.get('time')
       let target = 0
       const court = pCourt ? allCourts.find((c) => c.id === pCourt && c.is_active) : undefined
       if (court) {
         setVenueId(court.venue_id)
-        setSelected({ courtId: court.id, times: [] })
+        setSelected({ courtId: court.id, times: pTime ? [pTime] : [] })
         target = 1
       }
       const tz = s?.timezone ?? 'Europe/Berlin'
       const today = todayInTz(tz)
       if (s && pDate && /^\d{4}-\d{2}-\d{2}$/.test(pDate) && pDate >= today && pDate <= addDays(today, s.booking_window_days)) {
         setDate(pDate)
-        target = court ? 2 : 1
+        target = 1
       }
       if (target > 0) setStep(target)
       // month overview for date step
