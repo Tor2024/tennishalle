@@ -23,7 +23,7 @@ export function Pill({
   const cls = [
     'inline-flex items-center justify-center gap-2 rounded-full font-bold whitespace-nowrap transition-transform duration-300 cursor-pointer',
     full ? 'w-full' : '',
-    variant === 'lime' ? 'bg-primary-500 text-background-950 hover:brightness-105' : '',
+    variant === 'lime' ? 'bg-primary-500 text-background-50 hover:brightness-105' : '',
     variant === 'dark' ? 'bg-foreground-950 text-background-50' : '',
     variant === 'outline' ? 'border border-foreground-950/20 text-foreground-950 hover:border-foreground-950/40' : '',
   ].join(' ')

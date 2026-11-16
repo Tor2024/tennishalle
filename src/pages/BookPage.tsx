@@ -63,7 +63,7 @@ function StepPill({
       aria-label={label}
       className={`group box-border inline-flex h-12 items-center justify-between sm:justify-center gap-3 rounded-full border pl-5 pr-[5px] whitespace-nowrap text-[15px] font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
         lime
-          ? 'bg-primary-500 text-background-950 border-transparent'
+          ? 'bg-primary-500 text-background-50 border-transparent'
           : 'bg-foreground-950/[0.05] text-foreground-950 border-foreground-950/20 hover:border-primary-500/60'
       }`}
     >
@@ -821,11 +821,24 @@ function ReviewStep({
             </li>
             <li className="flex gap-2.5">
               <i className="ri-user-line text-primary-500 mt-0.5" />
-              <span>Mitglieder stornieren online bis 24 h vor Spielbeginn.</span>
+              <span>
+                Mitglieder stornieren online bis {settings.member_cancel_cutoff_hours ?? 24} h vor
+                Spielbeginn — danach im Verein.
+              </span>
             </li>
             <li className="flex gap-2.5">
-              <i className="ri-hashtag text-primary-500 mt-0.5" />
-              <span>Gäste stornieren über den Verein unter Angabe der Referenz.</span>
+              <i className="ri-book-2-line text-primary-500 mt-0.5" />
+              <span>
+                Buchungen sind bis {settings.booking_window_days ?? 30} Tage im Voraus möglich. Es
+                gelten die{' '}
+                <Link
+                  to="/legal/agb"
+                  className="text-primary-500 underline underline-offset-2 hover:text-primary-400"
+                >
+                  Buchungsbedingungen
+                </Link>
+                .
+              </span>
             </li>
           </ul>
           <label className="mt-5 flex items-start gap-2.5 text-[13px] text-foreground-800 cursor-pointer">
@@ -835,7 +848,17 @@ function ReviewStep({
               onChange={(e) => setChecked(e.target.checked)}
               className="mt-0.5 accent-primary-500"
             />
-            <span>Ich akzeptiere die obigen Buchungsbedingungen.</span>
+            <span>
+              Ich akzeptiere die{' '}
+              <Link
+                to="/legal/agb"
+                className="text-primary-500 underline underline-offset-2 hover:text-primary-400"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Buchungsbedingungen (AGB)
+              </Link>
+              .
+            </span>
           </label>
           <input ref={honeypot} type="text" name="website_alt2" tabIndex={-1} autoComplete="off" className="booking-alt-field" aria-hidden="true" />
         </div>

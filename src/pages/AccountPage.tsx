@@ -103,14 +103,11 @@ function BookingsList({
             <div className="col-span-12 md:col-span-5 flex flex-wrap items-center md:justify-end gap-3 pl-[16.66%] md:pl-0">
               <StatusChip status={e.status} />
               {cancellable && (
-                <button
-                  type="button"
+                <CancelButton
                   disabled={cancelling === e.id}
-                  onClick={() => onCancel(e.id)}
-                  className="text-[13px] font-semibold border border-background-300 hover:border-secondary-400 hover:text-secondary-200 px-4 py-2 rounded-full whitespace-nowrap cursor-pointer disabled:opacity-50"
-                >
-                  {cancelling === e.id ? 'Wird storniert…' : 'Buchung stornieren'}
-                </button>
+                  onConfirm={() => onCancel(e.id)}
+                  label={cancelling === e.id ? 'Wird storniert…' : 'Buchung stornieren'}
+                />
               )}
               {canCancel && !cancellable && ['pending', 'confirmed'].includes(e.status) && (
                 <span className="text-xs text-foreground-500">
@@ -122,6 +119,37 @@ function BookingsList({
         )
       })}
     </ul>
+  )
+}
+
+/* double-confirm cancel: click 1 arms (red, 'Wirklich stornieren?'), click 2 within 4s cancels; avoids accidental clicks */
+function CancelButton({ disabled, onConfirm, label }: { disabled: boolean; onConfirm: () => void; label: string }) {
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    if (!armed) return
+    const t = setTimeout(() => setArmed(false), 4000)
+    return () => clearTimeout(t)
+  }, [armed])
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        if (armed) {
+          setArmed(false)
+          onConfirm()
+        } else {
+          setArmed(true)
+        }
+      }}
+      className={
+        armed
+          ? 'text-[13px] font-semibold border border-red-500/70 bg-red-500/20 text-red-300 px-4 py-2 rounded-full whitespace-nowrap cursor-pointer disabled:opacity-50'
+          : 'text-[13px] font-semibold border border-background-300 hover:border-secondary-400 hover:text-secondary-200 px-4 py-2 rounded-full whitespace-nowrap cursor-pointer disabled:opacity-50'
+      }
+    >
+      {armed ? 'Wirklich stornieren?' : label}
+    </button>
   )
 }
 

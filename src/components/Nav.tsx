@@ -146,7 +146,7 @@ function NavLink({ to, active, children }: { to: string; active: boolean; childr
               Anmelden
             </Link>
           )}
-          <Link to="/book" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary-500 px-5 py-2.5 text-sm font-bold text-background-950">
+          <Link to="/book" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary-500 px-5 py-2.5 text-sm font-bold text-background-50">
             Platz buchen
           </Link>
         </div>
