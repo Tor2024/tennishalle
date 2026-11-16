@@ -26,14 +26,14 @@ async function stats(_body: Record<string, unknown>) {
     b_total: string; r_total: string; c_total: string; c_cancelled: string; customers: string;
   }>(
     `select
-      count(*) filter (where start_at >= date_trunc('day', now() at time zone $1)) as b_today,
-      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('day', now() at time zone $1) and status <> 'cancelled'), 0) as r_today,
-      count(*) filter (where start_at >= date_trunc('day', now() at time zone $1) - interval '6 days') as b_week,
-      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('day', now() at time zone $1) - interval '6 days' and status <> 'cancelled'), 0) as r_week,
-      count(*) filter (where start_at >= date_trunc('month', now() at time zone $1)) as b_month,
-      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('month', now() at time zone $1) and status <> 'cancelled'), 0) as r_month,
-      count(*) filter (where start_at >= date_trunc('year', now() at time zone $1)) as b_year,
-      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('year', now() at time zone $1) and status <> 'cancelled'), 0) as r_year,
+      count(*) filter (where start_at >= date_trunc('day', now() at time zone 'Europe/Berlin')) as b_today,
+      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('day', now() at time zone 'Europe/Berlin') and status <> 'cancelled'), 0) as r_today,
+      count(*) filter (where start_at >= date_trunc('day', now() at time zone 'Europe/Berlin') - interval '6 days') as b_week,
+      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('day', now() at time zone 'Europe/Berlin') - interval '6 days' and status <> 'cancelled'), 0) as r_week,
+      count(*) filter (where start_at >= date_trunc('month', now() at time zone 'Europe/Berlin')) as b_month,
+      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('month', now() at time zone 'Europe/Berlin') and status <> 'cancelled'), 0) as r_month,
+      count(*) filter (where start_at >= date_trunc('year', now() at time zone 'Europe/Berlin')) as b_year,
+      coalesce(sum(fee_cents) filter (where start_at >= date_trunc('year', now() at time zone 'Europe/Berlin') and status <> 'cancelled'), 0) as r_year,
       count(*) as b_total,
       coalesce(sum(fee_cents) filter (where status <> 'cancelled'), 0) as r_total,
       count(*) filter (where status = 'cancelled') as c_cancelled,
@@ -45,7 +45,7 @@ async function stats(_body: Record<string, unknown>) {
   // per-day last 30 days (bookings + revenue + views)
   const perDay = await db.query<{ day: string; bookings: string; revenue: string; views: string }>(
     `with days as (
-       select generate_series(date_trunc('day', now() at time zone $1) - interval '29 days', date_trunc('day', now() at time zone $1), interval '1 day') as d
+       select generate_series(date_trunc('day', now() at time zone 'Europe/Berlin') - interval '29 days', date_trunc('day', now() at time zone 'Europe/Berlin'), interval '1 day') as d
      )
      select to_char(d, 'YYYY-MM-DD') as day,
        (select count(*) from reservations r where r.start_at >= d and r.start_at < d + interval '1 day') as bookings,
@@ -57,7 +57,7 @@ async function stats(_body: Record<string, unknown>) {
   // per-month last 12 months
   const perMonth = await db.query<{ month: string; bookings: string; revenue: string }>(
     `with months as (
-       select generate_series(date_trunc('month', now() at time zone $1) - interval '11 months', date_trunc('month', now() at time zone $1), interval '1 month') as m
+       select generate_series(date_trunc('month', now() at time zone 'Europe/Berlin') - interval '11 months', date_trunc('month', now() at time zone 'Europe/Berlin'), interval '1 month') as m
      )
      select to_char(m, 'YYYY-MM') as month,
        (select count(*) from reservations r where r.start_at >= m and r.start_at < m + interval '1 month') as bookings,
@@ -67,14 +67,14 @@ async function stats(_body: Record<string, unknown>) {
   )
   // weekday distribution (0=Sunday)
   const perWeekday = await db.query<{ weekday: number; bookings: string }>(
-    `select extract(dow from start_at at time zone $1)::int as weekday, count(*) as bookings
+    `select extract(dow from start_at at time zone 'Europe/Berlin')::int as weekday, count(*) as bookings
      from reservations where status <> 'cancelled' and start_at >= now() - interval '1 year'
      group by 1 order by 1`,
     [TZ],
   )
   // popular hours (start hour)
   const perHour = await db.query<{ hour: number; bookings: string }>(
-    `select extract(hour from start_at at time zone $1)::int as hour, count(*) as bookings
+    `select extract(hour from start_at at time zone 'Europe/Berlin')::int as hour, count(*) as bookings
      from reservations where status <> 'cancelled' and start_at >= now() - interval '1 year'
      group by 1 order by 1`,
     [TZ],
@@ -109,7 +109,7 @@ async function stats(_body: Record<string, unknown>) {
   const util = await db.query<{ open_slots: string; booked_slots: string }>(
     `with open as (
        select count(*) as n from operating_hours oh, generate_series(0, 29) g
-       where oh.weekday = extract(dow from (current_date + g) at time zone $1)::int
+       where oh.weekday = extract(dow from (current_date + g) at time zone 'Europe/Berlin')::int
      ), booked as (
        select coalesce(sum(duration_minutes / 30), 0) as n from reservations
        where status = 'confirmed' and start_at >= now() and start_at < now() + interval '30 days'
