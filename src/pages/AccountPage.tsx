@@ -78,17 +78,27 @@ function BookingsList({
             <span className="col-span-2 md:col-span-1 font-wordmark text-3xl md:text-4xl text-foreground-400">
               {c?.court_number ? String(c.court_number).padStart(2, '0') : '—'}
             </span>
-            <div className="col-span-10 md:col-span-6 min-w-0">
-              <p className="font-heading text-xl md:text-2xl heading-tight">
-                {c?.name ?? 'Platz'}{' '}
-                <span className="text-foreground-500 text-base">· {venueName(c?.venue_id)}</span>
-              </p>
-              <p className="mt-1 text-sm text-foreground-600">
-                {fmt(e.start_at, tz)} · {fmtTime(e.start_at, tz)} – {fmtTime(e.end_at, tz)}
-              </p>
-              <p className="mt-1 text-xs text-foreground-500 tabular-nums">
-                Ref. {e.reference} · {formatPrice(e.fee_cents / 100)} — Zahlung direkt im Verein
-              </p>
+            <div className="col-span-10 md:col-span-6 min-w-0 flex items-center gap-4">
+              {c?.image_url && (
+                <img
+                  src={c.image_url}
+                  alt={c?.name ?? 'Platz'}
+                  className="hidden sm:block h-14 md:h-16 w-20 md:w-24 object-cover object-center rounded-md border border-background-300/50 shrink-0"
+                  loading="lazy"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="font-heading text-xl md:text-2xl heading-tight">
+                  {c?.name ?? 'Platz'}{' '}
+                  <span className="text-foreground-500 text-base">· {venueName(c?.venue_id)}</span>
+                </p>
+                <p className="mt-1 text-sm text-foreground-600">
+                  {fmt(e.start_at, tz)} · {fmtTime(e.start_at, tz)} – {fmtTime(e.end_at, tz)}
+                </p>
+                <p className="mt-1 text-xs text-foreground-500 tabular-nums">
+                  Ref. {e.reference} · {formatPrice(e.fee_cents / 100)} — Zahlung direkt im Verein
+                </p>
+              </div>
             </div>
             <div className="col-span-12 md:col-span-5 flex flex-wrap items-center md:justify-end gap-3 pl-[16.66%] md:pl-0">
               <StatusChip status={e.status} />

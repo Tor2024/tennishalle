@@ -84,6 +84,11 @@ export function apiData<T>(action: string, body: Record<string, unknown> = {}): 
   return post<T>('/api/data', { action, ...body })
 }
 
+/** admin actions: me, stats, bookings, create_block, delete_block, day_data */
+export function apiAdmin<T>(action: string, body: Record<string, unknown> = {}): Promise<T> {
+  return post<T>('/api/admin', { action, ...body })
+}
+
 /** venues + courts + club_settings in one call */
 export async function getBootstrap(): Promise<{ venues: Venue[]; courts: Court[]; settings: ClubSettings | null }> {
   const r = await apiData<{ ok: boolean; venues: Venue[]; courts: Court[]; settings: ClubSettings | null }>('bootstrap')

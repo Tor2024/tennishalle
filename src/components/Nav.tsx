@@ -6,6 +6,7 @@ export function Nav() {
   const [solid, setSolid] = useState(false)
   const [open, setOpen] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [userName, setUserName] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -17,7 +18,10 @@ export function Nav() {
   }, [])
 
   useEffect(() => {
-    apiAuth<{ ok: boolean }>('me').then((r) => setAuthed(!!r?.ok))
+    apiAuth<{ ok: boolean; user?: { full_name?: string } | null }>('me').then((r) => {
+      setAuthed(!!r?.ok)
+      setUserName(r?.user?.full_name ?? '')
+    })
   }, [location])
 
   useEffect(() => setOpen(false), [location])
@@ -25,6 +29,7 @@ export function Nav() {
   const signOut = async () => {
     await apiAuth('signout')
     setAuthed(false)
+    setUserName('')
     navigate('/')
   }
 
@@ -74,14 +79,21 @@ function NavLink({ to, active, children }: { to: string; active: boolean; childr
           })}
           {authed ? (
             <>
-              <NavLink to="/account" active={location.pathname === '/account'}>
-                Mein Konto
-              </NavLink>
+              <Link
+                to="/account"
+                className="flex items-center gap-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors text-foreground-800 hover:text-primary-500"
+              >
+                <span className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-500/15 text-primary-500">
+                  <i className="ri-user-3-line text-sm leading-none" />
+                </span>
+                {userName || 'Mein Konto'}
+              </Link>
               <button
                 type="button"
                 onClick={signOut}
-                className="relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors text-foreground-800 hover:text-foreground-950"
+                className="flex items-center gap-1.5 relative py-2 text-[11px] font-medium tracking-[0.22em] uppercase whitespace-nowrap cursor-pointer transition-colors text-foreground-800 hover:text-secondary-300"
               >
+                <i className="ri-logout-box-r-line text-base leading-none" />
                 Abmelden
               </button>
             </>
@@ -117,10 +129,14 @@ function NavLink({ to, active, children }: { to: string; active: boolean; childr
             </Link>
           ))}          {authed ? (
             <>
-              <Link to="/account" className="ro-eyebrow text-foreground-800 py-1">
-                Mein Konto
+              <Link to="/account" className="ro-eyebrow flex items-center gap-2 text-foreground-800 py-1">
+                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-primary-500/15 text-primary-500">
+                  <i className="ri-user-3-line text-xs leading-none" />
+                </span>
+                {userName || 'Mein Konto'}
               </Link>
-              <button type="button" onClick={signOut} className="ro-eyebrow text-foreground-800 py-1 text-left cursor-pointer">
+              <button type="button" onClick={signOut} className="ro-eyebrow flex items-center gap-1.5 text-foreground-800 py-1 text-left cursor-pointer">
+                <i className="ri-logout-box-r-line text-sm leading-none" />
                 Abmelden
               </button>
             </>

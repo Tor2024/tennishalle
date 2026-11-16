@@ -19,6 +19,7 @@ export async function POST(req: Request): Promise<Response> {
 
     if (body.action === "bootstrap") return await bootstrap();
     if (body.action === "court_blocks") return await courtBlocks(body);
+    if (body.action === "track") return await track(body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, code: "network", message: String((e as Error)?.message ?? e) }, 500);
@@ -58,4 +59,16 @@ async function courtBlocks(body: any): Promise<Response> {
     [`${date}T23:59:59Z`, `${date}T00:00:00Z`],
   );
   return json({ ok: true, blocks: res.rows });
+}
+
+/** Счётчик посещений: upsert (day, path) — вызывается с фронта при смене маршрута. */
+async function track(body: any): Promise<Response> {
+  const path = typeof body.path === "string" ? body.path.slice(0, 120) : "/";
+  const p = db();
+  await p.query(
+    `insert into page_views (day, path, cnt) values ((now() at time zone 'Europe/Berlin')::date, $1, 1)
+     on conflict (day, path) do update set cnt = page_views.cnt + 1`,
+    [path],
+  );
+  return json({ ok: true });
 }
