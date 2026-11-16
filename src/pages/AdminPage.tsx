@@ -477,6 +477,8 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
   const [editing, setEditing] = useState<AdminCourt | 'new' | null>(null)
   const [zoneCourt, setZoneCourt] = useState<string | null>(null) // court whose zones panel is open
   const [editingZone, setEditingZone] = useState<Zone | 'new' | null>(null)
+  const [hoursCourt, setHoursCourt] = useState<string | null>(null) // court whose hours panel is open
+  const [hoursRows, setHoursRows] = useState<{ weekday: number; opens: string; closes: string }[]>([])
 
   const load = async () => {
     setError('')
@@ -496,6 +498,24 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
   const courtZones = (courtId: string) => zones.filter((z) => z.court_id === courtId)
 
   const zoneLabel = (z: Zone) => `${z.label}: ${WD_FULL.filter((_, i) => z.weekdays.includes(i)).join(', ') || '—'} ${z.start_time.slice(0, 5)}–${z.end_time.slice(0, 5)} · ${(z.price_cents / 100).toFixed(2).replace('.', ',')} €`
+
+  const openHours = async (courtId: string) => {
+    if (hoursCourt === courtId) { setHoursCourt(null); return }
+    setHoursCourt(courtId)
+    const r = await apiAdmin<{ ok: boolean; hours: { weekday: number; opens: string; closes: string }[] }>('hours', { court_id: courtId })
+    const rows = r.ok ? r.hours : []
+    setHoursRows([0, 1, 2, 3, 4, 5, 6].map((wd) => {
+      const h = rows.find((x) => x.weekday === wd)
+      return { weekday: wd, opens: (h?.opens ?? '06:00').slice(0, 5), closes: (h?.closes ?? '23:30').slice(0, 5) }
+    }))
+  }
+
+  const saveHours = async (courtId: string) => {
+    const r = await apiAdmin<{ ok: boolean; message?: string }>('save_hours', { court_id: courtId, rows: hoursRows })
+    setMessage(r.ok ? 'Öffnungszeiten gespeichert.' : r.message ?? 'Fehler')
+    await load()
+    onCatalogReload()
+  }
 
   return (
     <div>
@@ -545,6 +565,9 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                     <button onClick={() => setZoneCourt(zoneCourt === c.id ? null : c.id)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
                       <i className="ri-price-tag-3-line mr-1" />Preiszonen ({courtZones(c.id).length})
                     </button>
+                    <button onClick={() => openHours(c.id)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
+                      <i className="ri-time-line mr-1" />Öffnungszeiten
+                    </button>
                     <ConfirmButton
                       label="Löschen"
                       confirmLabel="Wirklich löschen?"
@@ -559,6 +582,40 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                   </div>
                 </div>
               </div>
+
+              {hoursCourt === c.id && (
+                <div className="mt-5 pt-5 border-t border-foreground-950/10">
+                  <p className="ro-eyebrow text-foreground-600 mb-3">Öffnungszeiten · {c.name}</p>
+                  <div className="space-y-2">
+                    {hoursRows.map((h, i) => (
+                      <div key={h.weekday} className="flex items-center gap-3 text-[13px]">
+                        <span className="w-8 text-foreground-700 font-medium">{WD_FULL[h.weekday]}</span>
+                        <input
+                          type="time"
+                          value={h.opens}
+                          onChange={(e) => setHoursRows(hoursRows.map((x, j) => (j === i ? { ...x, opens: e.target.value } : x)))}
+                          className={`${ADMIN_FIELD_CLS} !w-auto px-2 py-1.5`}
+                        />
+                        <span className="text-foreground-500">–</span>
+                        <input
+                          type="time"
+                          value={h.closes}
+                          onChange={(e) => setHoursRows(hoursRows.map((x, j) => (j === i ? { ...x, closes: e.target.value } : x)))}
+                          className={`${ADMIN_FIELD_CLS} !w-auto px-2 py-1.5`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <ConfirmButton
+                      label="Öffnungszeiten speichern"
+                      confirmLabel="Wirklich speichern?"
+                      cls="h-9 px-4 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400"
+                      onConfirm={() => saveHours(c.id)}
+                    />
+                  </div>
+                </div>
+              )}
 
               {zoneCourt === c.id && (
                 <div className="mt-5 pt-5 border-t border-foreground-950/10">

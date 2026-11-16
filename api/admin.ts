@@ -1,5 +1,4 @@
-import { db, json, getUser } from './_lib.js'
-import type { SessionUser } from './_lib.js'
+import { db, json, getUser, toMin } from './_lib.js'
 import type { SessionUser } from './_lib.js'
 
 interface PoolClient { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }
@@ -307,6 +306,56 @@ async function deleteZone(body: Record<string, unknown>) {
   return json({ ok: true, message: 'Zone geloescht.' })
 }
 
+/** Öffnungszeiten eines Platzes (7 Wochentage). */
+async function hoursList(body: Record<string, unknown>) {
+  const courtId = typeof body.court_id === 'string' && body.court_id ? body.court_id : null
+  const rows = courtId
+    ? await db().query(`select weekday, opens, closes from operating_hours where court_id = $1 order by weekday`, [courtId])
+    : await db().query(`select oh.*, c.name as court_name from operating_hours oh join courts c on c.id = oh.court_id order by c.sort_order, oh.weekday`)
+  return json({ ok: true, hours: rows.rows })
+}
+
+/** Öffnungszeiten eines Platzes ERSETZEN (alle 7 Tage in einem Rutsch). */
+async function saveHours(body: Record<string, unknown>) {
+  const courtId = typeof body.court_id === 'string' ? body.court_id : ''
+  const rows = Array.isArray(body.rows) ? body.rows : []
+  if (!courtId) return json({ ok: false, code: 'bad_request', message: 'Fehlender Platz.' }, 400)
+  const court = await db().query(`select id from courts where id = $1`, [courtId])
+  if (!court.rows.length) return json({ ok: false, code: 'not_found', message: 'Platz nicht gefunden.' }, 404)
+
+  const norm = (v: unknown): string | null => {
+    const s = typeof v === 'string' ? v : ''
+    return /^\d{2}:\d{2}$/.test(s) ? `${s}:00` : /^\d{2}:\d{2}:\d{2}$/.test(s) ? s : null
+  }
+  const out: Array<[number, string, string]> = []
+  for (const r of rows) {
+    const wd = Number((r as Record<string, unknown>).weekday)
+    const o = norm((r as Record<string, unknown>).opens)
+    const c = norm((r as Record<string, unknown>).closes)
+    if (!Number.isInteger(wd) || wd < 0 || wd > 6 || !o || !c) {
+      return json({ ok: false, code: 'bad_request', message: 'Ungueltige Zeiten (erwartet HH:MM).' }, 400)
+    }
+    if (toMin(o) >= toMin(c)) {
+      return json({ ok: false, code: 'bad_request', message: 'Schliesszeit muss nach Öffnungszeit liegen.' }, 400)
+    }
+    out.push([wd, o, c])
+  }
+
+  const p = db()
+  await p.query('begin')
+  try {
+    await p.query(`delete from operating_hours where court_id = $1`, [courtId])
+    for (const [wd, o, c] of out) {
+      await p.query(`insert into operating_hours (court_id, weekday, opens, closes) values ($1, $2, $3, $4)`, [courtId, wd, o, c])
+    }
+    await p.query('commit')
+  } catch (err) {
+    await p.query('rollback')
+    throw err
+  }
+  return json({ ok: true, message: 'Öffnungszeiten gespeichert.' })
+}
+
 // ---------- partners ----------
 async function partnersList() {
   const r = await db().query(`select id, name, link, logo_path, sort_order, is_active from partners order by sort_order`)
@@ -543,6 +592,8 @@ export async function POST(req: Request): Promise<Response> {
       case 'delete_event': return await deleteEvent(body)
       case 'legal': return await legalList()
       case 'save_legal': return await saveLegal(body)
+      case 'hours': return await hoursList(body)
+      case 'save_hours': return await saveHours(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
     }
   } catch (e) {
