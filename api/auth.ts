@@ -1,9 +1,13 @@
-// auth-api — регистрация / вход / выход / текущий пользователь (cookie-сессии) + Google OAuth
+// auth-api — регистрация / вход / выход / текущий пользователь (cookie-сессии) + Google OAuth + email-верификация (Brevo)
 import { db, json, getUser, createSession, destroySession, hashPassword, verifyPassword, type SessionUser } from "./_lib.js";
 
 export const config = { runtime: "nodejs" };
 
 const PHONE_RE = /^[+]?[\d\s().-]{6,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SITE = "https://tennishalle.vercel.app";
+// Sender = email аккаунта Brevo (verified), пока нет своего домена
+const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL ?? "kalchenko2022@gmail.com";
 
 function normalizePhone(raw: string): string {
   return raw.replace(/[^\d+]/g, "");
@@ -34,10 +38,72 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "me") return await me(req);
     if (body.action === "google_url") return await googleUrl(body);
     if (body.action === "google_complete") return await googleComplete(body);
+    if (body.action === "resend_verification") return await resendVerification(body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, code: "network", message: String((e as Error)?.message ?? e) }, 500);
   }
+}
+
+// ---------- email-верификация (Brevo) ----------
+
+async function genTokenHex(): Promise<string> {
+  const buf = new Uint8Array(24);
+  crypto.getRandomValues(buf);
+  return Array.from(buf).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+interface BrevoResp { status: number; body: unknown }
+
+async function sendVerificationEmail(to: string, token: string): Promise<BrevoResp> {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error("BREVO_API_KEY fehlt");
+  const link = `${SITE}/api/auth/verify?token=${token}`;
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": apiKey, "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({
+      sender: { name: "TENNISHALLE", email: SENDER_EMAIL },
+      to: [{ email: to }],
+      subject: "Bestätige deine E-Mail-Adresse — TENNISHALLE",
+      htmlContent: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto">
+<h1 style="font-size:22px;color:#0b120c">TENNISHALLE</h1>
+<p>Willkommen bei TENNISHALLE! Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren:</p>
+<p><a href="${link}" style="display:inline-block;background:#d6f65a;color:#0b120c;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">E-Mail bestätigen</a></p>
+<p style="color:#666;font-size:13px">Oder kopiere diesen Link in deinen Browser:<br>${link}</p>
+<p style="color:#666;font-size:13px">Der Link gilt für 24 Stunden. Falls du dich nicht registriert hast, ignoriere diese E-Mail.</p>
+</div>`,
+    }),
+  });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+/** re-send письма подтверждения (например, если не пришло). */
+async function resendVerification(body: any): Promise<Response> {
+  const email = String(body.email ?? "").trim();
+  if (!email || !EMAIL_RE.test(email))
+    return json({ ok: false, code: "bad_request", message: "Bitte gib eine gültige E-Mail an." }, 400);
+  const p = db();
+  const u = await p.query<{ id: string; email: string; email_verified: boolean }>(
+    `select id, email, email_verified from app_users where lower(email) = lower($1)`,
+    [email],
+  );
+  if (u.rows.length === 0)
+    return json({ ok: true, message: "Wenn ein Konto existiert, wurde eine E-Mail gesendet." });
+  if (u.rows[0].email_verified)
+    return json({ ok: true, message: "E-Mail ist bereits bestätigt. Du kannst dich anmelden." });
+  const token = await genTokenHex();
+  const tokenHash = await sha256Hex(token);
+  await p.query(
+    `insert into email_verification_tokens (token_hash, user_id, expires_at) values ($1, $2, now() + interval '24 hours')`,
+    [tokenHash, u.rows[0].id],
+  );
+  try {
+    await sendVerificationEmail(u.rows[0].email, token);
+  } catch {
+    return json({ ok: false, code: "mail", message: "E-Mail konnte nicht gesendet werden. Bitte später erneut versuchen." }, 500);
+  }
+  return json({ ok: true, message: "Bestätigungs-E-Mail gesendet." });
 }
 
 // ---------- обычная регистрация / вход ----------
@@ -55,14 +121,27 @@ async function signup(body: any): Promise<Response> {
     return json({ ok: false, code: "exists", message: "Ein Konto mit dieser E-Mail existiert bereits." }, 409);
 
   const password_hash = await hashPassword(password);
-  const inserted = await p.query<{ id: string; email: string; full_name: string | null; role: SessionUser["role"]; phone: string | null }>(
-    `insert into app_users (email, password_hash, full_name, role, phone) values ($1, $2, $3, 'member', $4)
-     returning id, email, full_name, role, phone`,
+  const inserted = await p.query<{ id: string; email: string }>(
+    `insert into app_users (email, password_hash, full_name, role, phone, email_verified) values ($1, $2, $3, 'member', $4, false)
+     returning id, email`,
     [email.trim(), password_hash, full_name?.trim() || null, normalizePhone(phone)],
   );
   const user = inserted.rows[0];
-  const { setCookie } = await createSession(user.id);
-  return json({ ok: true, user }, 200, { "Set-Cookie": setCookie });
+
+  const token = await genTokenHex();
+  const tokenHash = await sha256Hex(token);
+  await p.query(
+    `insert into email_verification_tokens (token_hash, user_id, expires_at) values ($1, $2, now() + interval '24 hours')`,
+    [tokenHash, user.id],
+  );
+  try {
+    await sendVerificationEmail(user.email, token);
+  } catch {
+    // письмо не ушло — юзер может запросить повтор; но аккаунт уже создан
+    return json({ ok: false, code: "mail", message: "Konto erstellt, aber Bestätigungs-E-Mail konnte nicht gesendet werden. Bitte fordere eine neue an." }, 500);
+  }
+  // до подтверждения сессию НЕ выдаём
+  return json({ ok: true, requires_verification: true, message: "Bitte bestätige deine E-Mail-Adresse. Wir haben dir einen Link gesendet." });
 }
 
 async function signin(body: any): Promise<Response> {
@@ -71,13 +150,15 @@ async function signin(body: any): Promise<Response> {
     return json({ ok: false, code: "bad_request", message: "E-Mail und Passwort erforderlich." }, 400);
 
   const p = db();
-  const res = await p.query<{ id: string; email: string; full_name: string | null; role: SessionUser["role"]; phone: string | null; password_hash: string }>(
-    `select id, email, full_name, role, phone, password_hash from app_users where lower(email) = lower($1)`,
+  const res = await p.query<{ id: string; email: string; full_name: string | null; role: SessionUser["role"]; phone: string | null; password_hash: string; email_verified: boolean }>(
+    `select id, email, full_name, role, phone, password_hash, email_verified from app_users where lower(email) = lower($1)`,
     [email.trim()],
   );
   const user = res.rows[0];
   if (!user || !(await verifyPassword(password, user.password_hash)))
     return json({ ok: false, code: "invalid", message: "E-Mail oder Passwort falsch." }, 401);
+  if (!user.email_verified)
+    return json({ ok: false, code: "unverified", message: "Bitte bestätige zuerst deine E-Mail-Adresse (Link in deinem Postfach)." }, 403);
 
   const { setCookie } = await createSession(user.id);
   const { password_hash: _ph, ...safe } = user;

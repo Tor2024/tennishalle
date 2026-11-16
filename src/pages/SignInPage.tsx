@@ -12,6 +12,9 @@ export default function SignInPage() {
   const [params] = useSearchParams()
   const googlePending = params.get('google_pending')
   const googleError = params.get('google_error')
+  const verified = params.get('verified')
+  const verifyError = params.get('verify_error')
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
   const [mode, setMode] = useState<'in' | 'up'>('in')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -63,6 +66,23 @@ export default function SignInPage() {
     }
   }
 
+  const resendVerification = async () => {
+    if (!unverifiedEmail || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await apiAuth<{ ok: boolean; message?: string; error?: string }>('resend_verification', {
+        email: unverifiedEmail,
+      })
+      if (!r.ok) throw new Error(r.error ?? r.message ?? 'E-Mail konnte nicht gesendet werden.')
+      setSuccess(r.message ?? 'Bestätigungs-E-Mail gesendet. Bitte prüfe dein Postfach.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'E-Mail konnte nicht gesendet werden.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (busy) return
@@ -85,11 +105,17 @@ export default function SignInPage() {
           navigate('/account')
         }
       } else {
-        const r = await apiAuth<{ ok: boolean; user?: AppUser; error?: string; message?: string }>('signin', {
+        const r = await apiAuth<{ ok: boolean; user?: AppUser; error?: string; message?: string; code?: string }>('signin', {
           email,
           password,
         })
-        if (!r.ok) throw new Error(r.error ?? r.message ?? 'Anmeldung fehlgeschlagen.')
+        if (!r.ok) {
+          if (r.code === 'unverified') {
+            setUnverifiedEmail(email)
+            throw new Error(r.error ?? r.message ?? 'Bitte bestätige zuerst deine E-Mail-Adresse.')
+          }
+          throw new Error(r.error ?? r.message ?? 'Anmeldung fehlgeschlagen.')
+        }
         navigate(r.user && (r.user.role === 'admin' || r.user.role === 'owner') ? '/admin' : '/account')
       }
     } catch (err) {
@@ -215,11 +241,34 @@ export default function SignInPage() {
                     </p>
                   )}
 
+                  {verified && (
+                    <p className="mt-5 flex items-start gap-2 p-3 rounded-lg bg-primary-500/15 border border-primary-500/40 text-[13px] text-primary-400">
+                      <i className="ri-checkbox-circle-line mt-0.5" />
+                      E-Mail bestätigt! Du kannst dich jetzt anmelden.
+                    </p>
+                  )}
+                  {verifyError && (
+                    <p className="mt-5 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-[13px] text-red-300">
+                      <i className="ri-error-warning-line mt-0.5" />
+                      Link ungültig oder abgelaufen. Bitte fordere eine neue Bestätigungs-E-Mail an.
+                    </p>
+                  )}
+
                   {error && (
                     <p className="mt-5 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-[13px] text-red-300">
                       <i className="ri-error-warning-line mt-0.5" />
                       {error}
                     </p>
+                  )}
+                  {unverifiedEmail && (
+                    <button
+                      type="button"
+                      onClick={resendVerification}
+                      disabled={busy}
+                      className="mt-3 text-[13px] font-semibold text-primary-500 hover:text-primary-400 underline underline-offset-4 cursor-pointer disabled:opacity-60"
+                    >
+                      Bestätigungs-E-Mail erneut senden
+                    </button>
                   )}
                   {success && (
                     <p className="mt-5 flex items-start gap-2 p-3 rounded-lg bg-primary-500/15 border border-primary-500/40 text-[13px] text-primary-400">

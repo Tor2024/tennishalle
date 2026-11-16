@@ -79,9 +79,11 @@ export async function GET(req: Request): Promise<Response> {
     if (found.rows.length > 0) {
       userId = found.rows[0].id;
       phone = found.rows[0].phone;
+      // Google уже подтвердил e-mail — гарантируем флаг (важно для пользователей, созданных до email-верификации)
+      await p.query(`update app_users set email_verified = true where id = $1 and email_verified = false`, [userId]);
     } else {
       const inserted = await p.query<{ id: string; phone: string | null }>(
-        `insert into app_users (email, full_name, role) values ($1, $2, 'member') returning id, phone`,
+        `insert into app_users (email, full_name, role, email_verified) values ($1, $2, 'member', true) returning id, phone`,
         [email, fullName],
       );
       userId = inserted.rows[0].id;
