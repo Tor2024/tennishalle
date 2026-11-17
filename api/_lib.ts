@@ -223,7 +223,7 @@ export async function sendBookingConfirmationEmail(opts: {
   return sendBrevoEmail(opts.to, `Deine Buchung ist bestätigt — TENNISHALLE`, html);
 }
 
-/** Erinnerung за 24 часа. */
+/** Erinnerung ~за день до игры (cron раз в день на Hobby: окно 20-44ч). */
 export async function sendBookingReminderEmail(opts: {
   to: string; name: string; reference: string; courtName: string; venueName: string; startAt: string; endAt: string;
 }): Promise<boolean> {
@@ -231,11 +231,11 @@ export async function sendBookingReminderEmail(opts: {
   const tm = (iso: string) => new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: TZ }).format(new Date(iso));
   const greeting = opts.name ? `Guten Tag ${opts.name},` : "Guten Tag,";
   const html = MAIL_WRAP(
-    "Morgen spielst du bei uns.",
-    `<p style="color:#4a524a;font-size:15px;line-height:1.7;margin:14px 0 22px">${greeting} morgen steht dein Tennis-Termin an — wir halten den Platz für dich bereit:</p>
+    "Dein Tennis-Termin steht an.",
+    `<p style="color:#4a524a;font-size:15px;line-height:1.7;margin:14px 0 22px">${greeting} wir halten den Platz für dich bereit:</p>
      <table style="margin:0 0 8px;border-top:1px solid #e2e6de;width:100%">${MAIL_ROW("Platz", opts.courtName)}${MAIL_ROW("Anlage", opts.venueName)}${MAIL_ROW("Wann", `${dt}, ${tm(opts.startAt)} Uhr`)}${MAIL_ROW("Referenz", opts.reference)}</table>
-     <p style="color:#4a524a;font-size:14px;line-height:1.7;margin:22px 0 0">Wir freuen uns auf dich! Bis morgen — dein TENNISHALLE Team.</p>`,
+     <p style="color:#4a524a;font-size:14px;line-height:1.7;margin:22px 0 0">Wir freuen uns auf dich! Bis bald — dein TENNISHALLE Team.</p>`,
     "Buchung ansehen",
   );
-  return sendBrevoEmail(opts.to, `Morgen: Dein Tennis-Termin — TENNISHALLE`, html);
+  return sendBrevoEmail(opts.to, `Bald: Dein Tennis-Termin — TENNISHALLE`, html);
 }

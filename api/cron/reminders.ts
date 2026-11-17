@@ -24,8 +24,8 @@ export async function GET(req: Request): Promise<Response> {
          join app_users u on u.id = r.customer_user_id
         where r.status = 'confirmed'
           and r.reminder_sent = false
-          and r.start_at >= now() + interval '23 hours'
-          and r.start_at < now() + interval '25 hours'`,
+          and r.start_at >= now() + interval '20 hours'
+          and r.start_at < now() + interval '44 hours'`,
     );
     let sent = 0;
     for (const r of rows.rows) {
