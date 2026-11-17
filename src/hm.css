@@ -882,7 +882,7 @@
   .hm-partner, .hm-slot { transition: none; }
 }
 
-/* partner visitenkarten (business-card marquee tiles) */
+/* partner cards (dark neon marquee tiles) */
 .hm-visitenkarte {
   flex: 0 0 auto;
   display: flex;
@@ -890,21 +890,27 @@
   justify-content: space-between;
   width: 240px;
   min-height: 120px;
-  background: #fafaf6;
-  border-radius: 14px;
+  background:
+    radial-gradient(130% 100% at 0% 100%, color-mix(in oklab, var(--hm-lime) 7%, transparent), transparent 55%),
+    color-mix(in oklab, var(--color-foreground-950) 4%, transparent);
+  border-radius: 16px;
   padding: 18px 18px 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--hm-line);
+  transition: transform .2s ease, box-shadow .25s ease, border-color .25s ease;
 }
 .hm-visitenkarte:hover {
-  transform: translateY(-3px) rotate(-0.4deg);
-  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.55);
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--hm-lime) 45%, transparent);
+  box-shadow:
+    0 0 22px -4px color-mix(in oklab, var(--hm-lime) 32%, transparent),
+    0 14px 30px -12px rgba(0, 0, 0, 0.6);
 }
 .hm-visitenkarte-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.hm-visitenkarte-logo { width: 48px; height: 48px; border-radius: 10px; object-fit: contain; background: #fff; padding: 4px; flex: 0 0 auto; }
-.hm-visitenkarte-badge { width: 48px; height: 48px; border-radius: 10px; background: color-mix(in oklab, var(--color-primary-500) 16%, #fff); color: #3c4a3f; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-.hm-visitenkarte-name { font-size: 15px; font-weight: 700; color: #12211a; line-height: 1.25; }
-.hm-visitenkarte-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(0, 0, 0, 0.08); }
-.hm-visitenkarte-domain { font-size: 11.5px; color: #5c6b60; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-visitenkarte-logo { width: 48px; height: 48px; border-radius: 11px; object-fit: contain; background: #fff; padding: 4px; flex: 0 0 auto; }
+.hm-visitenkarte-badge { width: 48px; height: 48px; border-radius: 11px; background: color-mix(in oklab, var(--hm-lime) 14%, transparent); color: var(--hm-lime); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; transition: box-shadow .25s ease; }
+.hm-visitenkarte:hover .hm-visitenkarte-badge { box-shadow: 0 0 16px -2px color-mix(in oklab, var(--hm-lime) 45%, transparent); }
+.hm-visitenkarte-name { font-size: 15px; font-weight: 700; color: var(--color-foreground-950); line-height: 1.25; }
+.hm-visitenkarte-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid color-mix(in oklab, var(--color-foreground-950) 10%, transparent); }
+.hm-visitenkarte-domain { font-size: 11.5px; color: var(--color-foreground-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-visitenkarte-foot .ri-arrow-right-up-line { color: var(--hm-lime); }
 a.hm-visitenkarte { color: inherit; text-decoration: none; }
