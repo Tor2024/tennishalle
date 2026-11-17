@@ -5,7 +5,7 @@ import { Reveal } from './Reveal'
 import { RichText } from '../lib/richText'
 
 interface NewsRow { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published_at: string | null; author_name?: string | null }
-interface PromoRow { id: string; title: string; lead: string | null; body: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null }
+interface PromoRow { id: string; title: string; lead: string | null; body: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null; icon?: string | null; cta_label?: string | null; cta_link?: string | null }
 interface EventRow { id: string; kind: string; title: string; participants: string | null; starts_at: string; description: string | null }
 
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
@@ -15,7 +15,7 @@ const FALLBACK_NEWS: NewsRow[] = [
   { id: 'fb-1', title: 'Winterhallen-Plan ist da', slug: 'winterhallen-plan', lead: null, body: 'Ab sofort gelten die Winteröffnungszeiten in der Halle. Alle Zeiten findest du auf der Übersicht der Plätze.', image_path: null, published_at: null },
   { id: 'fb-2', title: 'Neue Kursgruppe Kinder', slug: 'kursgruppe-kinder', lead: null, body: 'Ein neuer Kurs für Kinder von 6–9 Jahren startet im Dezember. Anmeldung jetzt möglich.', image_path: null, published_at: null },
 ]
-const FALLBACK_PROMO: PromoRow = { id: 'fb-p', title: 'Montags bis freitags vor 12 Uhr: −20 % auf jede Hallenbuchung', lead: null, body: 'Gilt für alle Hallenplätze bei Buchung über das System.', promo_expires_at: null }
+const FALLBACK_PROMO: PromoRow[] = [{ id: 'fb-p', title: 'Montags bis freitags vor 12 Uhr: −20 % auf jede Hallenbuchung', lead: null, body: 'Gilt für alle Hallenplätze bei Buchung über das System.', promo_expires_at: null }]
 const FALLBACK_EVENTS: EventRow[] = [
   { id: 'fb-e1', kind: 'match', title: 'Game: Müller vs. Schmidt', participants: 'Freundschaftsspiel · Halle, Platz 1 · 18:00', starts_at: '2026-11-22T18:00:00Z', description: null },
   { id: 'fb-e2', kind: 'tournament', title: 'Vereinsmeisterschaft — Vorrunde', participants: 'Turnier · Halle, Platz 1 & 2 · ab 10:00', starts_at: '2026-11-29T10:00:00Z', description: null },
@@ -39,15 +39,15 @@ function fmtDate(iso: string | null | undefined): string {
 // structure verbatim from prod bundle home.js (#aktuelles template); data from DB with static fallback
 export function Aktuelles() {
   const [news, setNews] = useState<NewsRow[] | null>(null)
-  const [promo, setPromo] = useState<PromoRow | null>(null)
+  const [promo, setPromo] = useState<PromoRow[] | null>(null)
   const [events, setEvents] = useState<EventRow[] | null>(null)
 
   useEffect(() => {
-    apiData<{ ok: boolean; news: NewsRow[]; promo: PromoRow | null; events: EventRow[] }>('news')
+    apiData<{ ok: boolean; news: NewsRow[]; promo: PromoRow[]; events: EventRow[] }>('news')
       .then((r) => {
         if (!r?.ok) throw new Error('bad response')
         setNews(r.news?.length ? r.news : FALLBACK_NEWS)
-        setPromo(r.promo ?? FALLBACK_PROMO)
+        setPromo(r.promo?.length ? r.promo : FALLBACK_PROMO)
         setEvents(r.events ?? [])
       })
       .catch(() => {
@@ -95,26 +95,37 @@ export function Aktuelles() {
                 )
               })}
             </div>
-            {promo && (
-              <div className="hm-promo-card">
-                <p className="hm-promo-pill">Angebot der Woche</p>
-                <p className="hm-promo-title">{promo.title}</p>
-                {promo.lead && <p className="hm-promo-sub !text-primary-400 font-medium">{promo.lead}</p>}
-                {promo.body && <RichText body={promo.body} className="hm-promo-sub [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5" />}
-                {(() => {
-                  const meta = [fmtDate(promo.published_at), promo.author_name].filter(Boolean).join(' · ')
-                  return meta ? (
-                    <p className="text-xs opacity-70 flex items-center gap-1.5">
-                      <i className="ri-time-line text-[13px]" />
-                      {meta}
-                    </p>
-                  ) : null
-                })()}
-                <Link to="/book" className="hm-btn hm-btn-lime">
-                  Jetzt Slots sichern <i className="ri-arrow-right-up-line" />
-                </Link>
-              </div>
-            )}
+            <div className="hm-promo-col">
+            {(promo ?? []).slice(0, 3).map((p) => {
+              const ctaLabel = p.cta_label || 'Jetzt buchen'
+              const ctaTo = p.cta_link || '/book'
+              const ctaInner = <>{ctaLabel} <i className="ri-arrow-right-up-line" /></>
+              const ctaCls = 'hm-btn hm-btn-lime mt-auto self-start'
+              return (
+                <div key={p.id} className="hm-promo-card flex flex-col">
+                  <p className="hm-promo-pill">Angebot</p>
+                  {p.icon && <i className={`${p.icon} text-[26px] text-primary-500 mt-3`} />}
+                  <p className="hm-promo-title">{p.title}</p>
+                  {p.lead && <p className="hm-promo-sub !text-primary-400 font-medium">{p.lead}</p>}
+                  {p.body && <RichText body={p.body} className="hm-promo-sub [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5" />}
+                  {(() => {
+                    const meta = [fmtDate(p.published_at), p.author_name].filter(Boolean).join(' · ')
+                    return meta ? (
+                      <p className="text-xs opacity-70 flex items-center gap-1.5 mt-4">
+                        <i className="ri-time-line text-[13px]" />
+                        {meta}
+                      </p>
+                    ) : null
+                  })()}
+                  {ctaTo.startsWith('/') || ctaTo.startsWith('#') ? (
+                    <Link to={ctaTo} className={ctaCls}>{ctaInner}</Link>
+                  ) : (
+                    <a href={ctaTo} target="_blank" rel="noreferrer" className={ctaCls}>{ctaInner}</a>
+                  )}
+                </div>
+              )
+            })}
+            </div>
           </div>
           {eventList.length > 0 && (
             <div className="hm-events mt-6">

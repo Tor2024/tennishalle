@@ -63,10 +63,10 @@ async function news(): Promise<Response> {
   const p = db();
   const [postsRes, promoRes, eventsRes] = await Promise.all([
     p.query(`select n.id, n.title, n.slug, n.lead, n.body, n.image_path, n.published_at, u.full_name as author_name from news_posts n left join app_users u on u.id = n.created_by where n.published = true and n.type = 'news' order by n.published_at desc nulls last, n.created_at desc limit 6`),
-    p.query(`select n.id, n.title, n.lead, n.body, n.image_path, n.promo_expires_at, n.published_at, u.full_name as author_name from news_posts n left join app_users u on u.id = n.created_by where n.published = true and n.type = 'promo' and (n.promo_expires_at is null or n.promo_expires_at > now()) order by n.published_at desc limit 1`),
+    p.query(`select n.id, n.title, n.lead, n.body, n.image_path, n.promo_expires_at, n.icon, n.cta_label, n.cta_link, n.published_at, u.full_name as author_name from news_posts n left join app_users u on u.id = n.created_by where n.published = true and n.type = 'promo' and (n.promo_expires_at is null or n.promo_expires_at > now()) order by n.published_at desc limit 3`),
     p.query(`select id, kind, title, participants, starts_at, ends_at, description from events where is_published = true and starts_at >= now() - interval '2 hours' order by starts_at limit 8`),
   ]);
-  return json({ ok: true, news: postsRes.rows, promo: promoRes.rows[0] ?? null, events: eventsRes.rows });
+  return json({ ok: true, news: postsRes.rows, promo: promoRes.rows, events: eventsRes.rows });
 }
 
 /** Обзор цен по кортам: hourly_price + min/max из price_zones (для карточек и планировщика). */

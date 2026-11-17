@@ -591,6 +591,7 @@
 @media (min-width: 1024px) { .hm-news-layout { grid-template-columns: 2fr 1fr; } }
 .hm-news-cards { display: grid; gap: 20px; grid-template-columns: 1fr; }
 @media (min-width: 640px) { .hm-news-cards { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1024px) { .hm-promo-col { display: grid; gap: 20px; align-content: start; } }
 .hm-news-card { padding: 24px; }
 .hm-news-text { font-size: 15px; line-height: 1.6; color: var(--color-foreground-700); margin: 10px 0 16px; }
 .hm-textlink {

@@ -1136,7 +1136,7 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
 }
 
 // ---------- content tab (news / promo / events) ----------
-interface AdminPost { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null }
+interface AdminPost { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null; icon: string | null; cta_label: string | null; cta_link: string | null }
 interface AdminEvent { id: string; kind: string; title: string; participants: string | null; starts_at: string; ends_at: string | null; description: string | null; is_published: boolean }
 const EVENT_KINDS = [
   { id: 'match', label: 'Spiel' },
@@ -1257,6 +1257,17 @@ function ContentTab() {
   )
 }
 
+const PROMO_ICONS = [
+  { id: 'ri-ticket-percent-line', label: 'Rabatt / Angebot' },
+  { id: 'ri-time-line', label: 'Zeitlich begrenzt' },
+  { id: 'ri-gift-line', label: 'Gutschein / Geschenk' },
+  { id: 'ri-star-line', label: 'Highlight' },
+  { id: 'ri-calendar-event-line', label: 'Termin / Event' },
+  { id: 'ri-group-line', label: 'Gruppe / Gemeinsam' },
+  { id: 'ri-vip-crown-line', label: 'Premium' },
+  { id: 'ri-information-line', label: 'Hinweis' },
+] as const
+
 function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose: () => void; onSaved: (msg: string) => void }) {
   const [form, setForm] = useState({
     title: post?.title ?? '',
@@ -1266,6 +1277,9 @@ function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose
     image_path: post?.image_path ?? '',
     published: post?.published ?? true,
     promo_expires_at: post?.promo_expires_at ? post.promo_expires_at.slice(0, 10) : '',
+    icon: post?.icon ?? '',
+    cta_label: post?.cta_label ?? '',
+    cta_link: post?.cta_link ?? '',
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -1325,8 +1339,31 @@ function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose
           {form.image_path && <img src={form.image_path} alt="" className="w-12 h-12 rounded-lg object-cover ro-frame" />}
         </div>
         {form.type === 'promo' && (
-          <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Angebot gültig bis (optional)</span>
-            <input type="date" value={form.promo_expires_at} onChange={(e) => set('promo_expires_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
+          <>
+            <div className="mt-4">
+              <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Symbol <InfoHint text="Kleine Ikone neben dem Titel auf der Aktuelles-Seite. Optional — ohne Auswahl wird keine Ikone gezeigt." /></span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {PROMO_ICONS.map((ic) => (
+                  <button key={ic.id} type="button" onClick={() => set('icon', form.icon === ic.id ? '' : ic.id)} title={ic.label}
+                    className={`h-10 w-10 rounded-lg border text-[18px] cursor-pointer flex items-center justify-center ${form.icon === ic.id ? 'border-primary-500 bg-primary-500/15 text-primary-400' : 'border-foreground-950/20 text-foreground-600 hover:border-primary-500/60'}`}>
+                    <i className={ic.id} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Button-Text <InfoHint text="Beschriftung der Schaltfläche auf der Aktuelles-Karte. Leer = kein Button." /></span>
+                <input value={form.cta_label} onChange={(e) => set('cta_label', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Jetzt buchen" />
+              </label>
+              <label className="block">
+                <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Button-Link <InfoHint text="Wohin der Button führt. Intern: /book (Buchung), /konto oder #partner. Extern: https://… Leer = /book." /></span>
+                <input value={form.cta_link} onChange={(e) => set('cta_link', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="/book" />
+              </label>
+            </div>
+            <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Angebot gültig bis (optional)</span>
+              <input type="date" value={form.promo_expires_at} onChange={(e) => set('promo_expires_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
+          </>
         )}
         <label className="mt-4 flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
           <input type="checkbox" checked={form.published} onChange={(e) => set('published', e.target.checked)} className="accent-[var(--color-primary-500)]" />
