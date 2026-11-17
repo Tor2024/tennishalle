@@ -48,30 +48,30 @@ void main() {
   float acc = 0.0;
   for (int i = 0; i < 4; i++) {
     float fi = float(i);
-    float base = 0.34 + fi * 0.11;
+    float base = 0.50 + fi * 0.09;
     float wob = fbm(vec2(p.x * 1.1 + fi * 3.1, t * 0.45 + fi * 1.7)) - 0.5;
     float curve = base
       + wob * 0.30
       + 0.05 * sin(p.x * 1.9 + t * (0.6 + fi * 0.21) + fi * 2.1)
       + influence * 0.10;
     float d = abs(p.y - curve);
-    float w = 0.010 + 0.016 * fi;
+    float w = 0.012 + 0.018 * fi;
     float core = exp(-d * d / (w * w));
-    float halo = exp(-d * d / (w * w * 11.0)) * 0.22;
-    acc += (core + halo) * (0.8 - 0.13 * fi);
+    float halo = exp(-d * d / (w * w * 11.0)) * 0.16;
+    acc += (core + halo) * (0.55 - 0.09 * fi);
   }
 
   // threads live in a mid diagonal band, fade to section edges
-  float env = exp(-pow((p.y - 0.47) * 1.9, 2.0));
+  float env = exp(-pow((p.y - 0.58) * 2.1, 2.0));
   acc *= env;
   acc *= smoothstep(0.0, 0.14, uv.x) * smoothstep(1.0, 0.86, uv.x)
        * smoothstep(0.0, 0.16, uv.y) * smoothstep(1.0, 0.84, uv.y);
-  acc += influence * 0.12 * env;
+  acc += influence * 0.10 * env;
 
   vec3 lime = vec3(0.839, 0.965, 0.353);
   vec3 green = vec3(0.10, 0.22, 0.13);
   vec3 col = mix(green, lime, clamp(acc, 0.0, 1.0));
-  float alpha = clamp(acc * 0.85, 0.0, 1.0);
+  float alpha = clamp(acc * 0.62, 0.0, 1.0);
 
   // sparse twinkling sparkles on a hash grid
   vec2 gp = uv * u_res / 110.0;
