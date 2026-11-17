@@ -1392,6 +1392,10 @@ function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose
           </label>
           {form.image_path && <img src={form.image_path} alt="" className="w-12 h-12 rounded-lg object-cover ro-frame" />}
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-foreground-500">
+          <i className="ri-information-line mr-1 text-primary-500" />
+          PNG, JPEG, WebP, SVG oder GIF · bis 150&nbsp;KB bleibt das Original unverändert, größere Bilder werden automatisch auf max. 780&nbsp;px Breite skaliert (WebP) · SVG/GIF werden immer unverändert übernommen — halte sie klein.
+        </p>
         {form.type === 'promo' && (
           <>
             <div className="mt-4">
@@ -1466,17 +1470,17 @@ function EventModal({ event, onClose, onSaved }: { event: AdminEvent | null; onC
         {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
         <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Titel *</span>
           <input value={form.title} onChange={(e) => set('title', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Vereinsmeisterschaft" /></label>
-        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Art</span>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Art <InfoHint text="Spiel = Pflichtspiel/Match, Turnier = Turnierhinweis, Training = Trainingseinheit, Sonstiges = z. B. Vereinsfeier. Erscheint als Label im Terminkalender der Website." /></span>
           <select value={form.kind} onChange={(e) => set('kind', e.target.value)} className={ADMIN_FIELD_CLS}>
             {EVENT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
           </select></label>
-        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Teilnehmer / Ort (optional)</span>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Teilnehmer / Ort (optional) <InfoHint text="Freitext, erscheint unter dem Titel: Ort, Gegner oder Uhrzeit-Zusatz. Beispiel: „Halle, Platz 1 · 18:00“ oder „Mannschaftsspiel U14“." /></span>
           <input value={form.participants} onChange={(e) => set('participants', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Halle, Platz 1 · 18:00" /></label>
-        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Beginn *</span>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Beginn * <InfoHint text="Datum und Uhrzeit des Termins. Anzeige auf der Website in Europe/Berlin." /></span>
           <input type="datetime-local" value={form.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
-        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Ende (optional)</span>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Ende (optional) <InfoHint text="Wann der Termin voraussichtlich endet. Leer = nur Startzeit wird gezeigt." /></span>
           <input type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
-        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Beschreibung</span>
+        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Beschreibung <InfoHint text="Kurzer Hinweistext zum Termin. Optional — leer = keine Beschreibung." /></span>
           <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} className={`${ADMIN_FIELD_CLS} resize-y`} /></label>
         <label className="mt-4 flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
           <input type="checkbox" checked={form.is_published} onChange={(e) => set('is_published', e.target.checked)} className="accent-[var(--color-primary-500)]" />
@@ -1530,7 +1534,7 @@ function TournamentModal({ tournament, onClose, onSaved }: { tournament: AdminTo
         <p className="ro-eyebrow text-primary-500">{tournament ? 'Turnier bearbeiten' : 'Neues Turnier'}</p>
         <h3 className="mt-2 ro-card-title">{tournament ? tournament.title : 'Turnier anlegen'}</h3>
         {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
-        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Titel *</span>
+        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Titel * <InfoHint text="Name des Turniers, z. B. „Vereinsmeisterschaft 2026“. Erscheint als Überschrift der Turnierkarte." /></span>
           <input value={form.title} onChange={(e) => set('title', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Vereinsmeisterschaft 2026" /></label>
         <label className="block mt-4">
           <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Beschreibung <InfoHint text="Formatierung: Leerzeile = neuer Absatz, **Text** = fett, Zeilen die mit - beginnen = Aufzählung. Kurz halten: Modus, Modus-Besonderheiten, Zielgruppe." /></span>
@@ -1943,7 +1947,7 @@ function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | n
             {uploading ? 'Wird hochgeladen…' : 'Bild hochladen'}
             <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
           </label>
-          <span className="text-[11px] text-foreground-500">PNG, JPG, WEBP, SVG, GIF · max 2 MB · wird auf 520 px verkleinert</span>
+          <span className="text-[11px] text-foreground-500">PNG, JPG, WEBP, SVG, GIF · bis 150 KB Original, größere werden auf 520 px (WebP) skaliert</span>
         </div>
         {form.image_url && <img src={form.image_url} alt="" className="mt-3 h-32 w-full object-cover rounded-lg ro-frame" />}
         <div className="mt-4 flex items-center justify-between gap-3">
