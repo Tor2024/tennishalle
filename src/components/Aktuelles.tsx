@@ -213,7 +213,25 @@ export function Aktuelles() {
                         {p.image_path
                           ? <img className="hm-promo-img" src={p.image_path} alt="" loading="lazy" />
                           : <span className="hm-promo-ph"><i className={p.icon || 'ri-gift-line'} aria-hidden="true" /></span>}
-                        <span className="hm-promo-pill">Angebot</span>
+                        <span className="hm-promo-spin" aria-hidden="true">
+                          <svg viewBox="0 0 100 100" className="hm-spin-svg">
+                            <defs>
+                              <path id={`spinOuter-${p.id}`} d="M 50,50 m -36,0 a 36,36 0 1,1 72,0 a 36,36 0 1,1 -72,0" />
+                              <path id={`spinInner-${p.id}`} d="M 50,50 m -22,0 a 22,22 0 1,1 44,0 a 22,22 0 1,1 -44,0" />
+                            </defs>
+                            <g className="hm-spin-outer">
+                              <text fontSize="10.5" letterSpacing="2.5">
+                                <textPath href={`#spinOuter-${p.id}`}>AKTUELLES ANGEBOT · AKTUELLES ANGEBOT ·</textPath>
+                              </text>
+                            </g>
+                            <g className="hm-spin-inner">
+                              <text fontSize="10.5" letterSpacing="2.5">
+                                <textPath href={`#spinInner-${p.id}`}>{`${(p.cta_label || 'JETZT BUCHEN').toUpperCase()} · ${(p.cta_label || 'JETZT BUCHEN').toUpperCase()} ·`}</textPath>
+                              </text>
+                            </g>
+                          </svg>
+                          <i className="ri-tennis-line" />
+                        </span>
                       </div>
                       <p className="hm-promo-title">{p.title}</p>
                       {p.lead && <p className="hm-promo-sub line-clamp-2">{p.lead}</p>}

@@ -791,6 +791,23 @@
   padding: 7px 13px; border-radius: 999px;
   border: 1px solid color-mix(in oklab, var(--hm-lime) 35%, transparent);
 }
+.hm-promo-spin {
+  position: absolute; top: 12px; right: 12px;
+  width: 92px; height: 92px; border-radius: 999px;
+  background: color-mix(in oklab, var(--color-foreground-950) 78%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in oklab, var(--hm-lime) 35%, transparent);
+  display: flex; align-items: center; justify-content: center;
+}
+.hm-promo-spin .hm-spin-svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: var(--hm-lime); font-weight: 800; }
+.hm-promo-spin .hm-spin-outer { transform-origin: 50% 50%; animation: hm-rot 16s linear infinite; }
+.hm-promo-spin .hm-spin-inner { transform-origin: 50% 50%; animation: hm-rot 11s linear infinite reverse; }
+.hm-promo-spin > i { font-size: 22px; color: var(--hm-lime); }
+@keyframes hm-rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .hm-promo-spin .hm-spin-outer, .hm-promo-spin .hm-spin-inner { animation: none; }
+}
+@media (max-width: 640px) { .hm-promo-spin { width: 72px; height: 72px; top: 10px; right: 10px; } .hm-promo-spin > i { font-size: 18px; } }
 .hm-promo-ph {
   display: flex; align-items: center; justify-content: center;
   aspect-ratio: 16 / 9;
