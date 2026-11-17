@@ -882,7 +882,12 @@
   .hm-partner, .hm-slot { transition: none; }
 }
 
-/* partner cards (dark neon marquee tiles) */
+/* partner cards (dark neon marquee tiles, rotating conic border) */
+@property --pa {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
 .hm-visitenkarte {
   flex: 0 0 auto;
   display: flex;
@@ -890,14 +895,33 @@
   justify-content: space-between;
   width: 240px;
   min-height: 120px;
+  position: relative;
+  border-radius: 16px;
+  padding: 18px 18px 14px;
   background:
     radial-gradient(130% 100% at 0% 100%, color-mix(in oklab, var(--hm-lime) 7%, transparent), transparent 55%),
     color-mix(in oklab, var(--color-foreground-950) 4%, transparent);
-  border-radius: 16px;
-  padding: 18px 18px 14px;
   border: 1px solid var(--hm-line);
   transition: transform .2s ease, box-shadow .25s ease, border-color .25s ease;
 }
+.hm-visitenkarte::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 17px;
+  padding: 1px;
+  background: conic-gradient(from var(--pa), transparent 0deg, transparent 250deg, color-mix(in oklab, var(--hm-lime) 85%, transparent) 300deg, color-mix(in oklab, var(--hm-lime) 20%, transparent) 340deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box exclude, linear-gradient(#fff 0 0);
+  animation: pa-rot 8s linear infinite;
+  pointer-events: none;
+}
+@keyframes pa-rot { to { --pa: 360deg; } }
+/* phase offset per card so rotation is not synchronized */
+.hm-visitenkarte:nth-child(2n)::before { animation-delay: -2.7s; }
+.hm-visitenkarte:nth-child(3n)::before { animation-delay: -5.3s; }
+.hm-visitenkarte:nth-child(5n)::before { animation-delay: -6.8s; }
 .hm-visitenkarte:hover {
   transform: translateY(-3px);
   border-color: color-mix(in oklab, var(--hm-lime) 45%, transparent);
@@ -913,4 +937,7 @@
 .hm-visitenkarte-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid color-mix(in oklab, var(--color-foreground-950) 10%, transparent); }
 .hm-visitenkarte-domain { font-size: 11.5px; color: var(--color-foreground-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hm-visitenkarte-foot .ri-arrow-right-up-line { color: var(--hm-lime); }
+@media (prefers-reduced-motion: reduce) {
+  .hm-visitenkarte::before { animation: none; background: linear-gradient(120deg, transparent 30%, color-mix(in oklab, var(--hm-lime) 55%, transparent) 50%, transparent 70%); }
+}
 a.hm-visitenkarte { color: inherit; text-decoration: none; }
