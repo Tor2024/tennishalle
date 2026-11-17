@@ -39,6 +39,8 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "google_url") return await googleUrl(body);
     if (body.action === "google_complete") return await googleComplete(body);
     if (body.action === "resend_verification") return await resendVerification(body);
+    if (body.action === "update_profile") return await updateProfile(req, body);
+    if (body.action === "change_password") return await changePassword(req, body);
     return json({ ok: false, code: "bad_action", message: "Unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, code: "network", message: String((e as Error)?.message ?? e) }, 500);
@@ -196,6 +198,49 @@ async function googleComplete(body: any): Promise<Response> {
 async function signout(req: Request): Promise<Response> {
   const setCookie = await destroySession(req);
   return json({ ok: true }, 200, { "Set-Cookie": setCookie });
+}
+
+/** action:'update_profile' — изменение имени и телефона в кабинете. */
+async function updateProfile(req: Request, body: any): Promise<Response> {
+  const user = await getUser(req);
+  if (!user) return json({ ok: false, code: "unauthorized", message: "Nicht angemeldet." }, 401);
+
+  const full_name = String(body.full_name ?? "").trim();
+  const phone = String(body.phone ?? "").trim();
+  if (full_name.length < 2)
+    return json({ ok: false, code: "bad_request", message: "Bitte gib deinen vollständigen Namen an." }, 400);
+  if (!phone || !PHONE_RE.test(phone))
+    return json({ ok: false, code: "bad_request", message: "Bitte gib eine gültige Telefonnummer an." }, 400);
+
+  const p = db();
+  const updated = await p.query<{ id: string; email: string; full_name: string | null; role: SessionUser["role"]; phone: string | null }>(
+    `update app_users set full_name = $1, phone = $2 where id = $3 returning id, email, full_name, role, phone`,
+    [full_name, normalizePhone(phone), user.id],
+  );
+  return json({ ok: true, user: updated.rows[0], message: "Profil gespeichert." });
+}
+
+/** action:'change_password' — смена пароля (только для обычных аккаунтов). */
+async function changePassword(req: Request, body: any): Promise<Response> {
+  const user = await getUser(req);
+  if (!user) return json({ ok: false, code: "unauthorized", message: "Nicht angemeldet." }, 401);
+
+  const current = String(body.current ?? "");
+  const next = String(body.next ?? "");
+  if (typeof next !== "string" || next.length < 6)
+    return json({ ok: false, code: "bad_request", message: "Neues Passwort muss mindestens 6 Zeichen haben." }, 400);
+
+  const p = db();
+  const row = await p.query<{ password_hash: string | null }>(`select password_hash from app_users where id = $1`, [user.id]);
+  const hash = row.rows[0]?.password_hash;
+  if (!hash)
+    return json({ ok: false, code: "no_password", message: "Dein Konto nutzt die Google-Anmeldung — das Passwort kann nicht geändert werden." }, 400);
+  if (!(await verifyPassword(current, hash)))
+    return json({ ok: false, code: "invalid", message: "Aktuelles Passwort ist falsch." }, 400);
+
+  const newHash = await hashPassword(next);
+  await p.query(`update app_users set password_hash = $1 where id = $2`, [newHash, user.id]);
+  return json({ ok: true, message: "Passwort geändert." });
 }
 
 async function me(req: Request): Promise<Response> {

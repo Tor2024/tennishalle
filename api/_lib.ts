@@ -68,6 +68,7 @@ export interface SessionUser {
   full_name: string | null;
   role: "member" | "owner" | "admin";
   phone?: string | null;
+  has_password?: boolean;
 }
 
 const SESSION_COOKIE = "th_session";
@@ -104,7 +105,7 @@ export async function getUser(req: Request): Promise<SessionUser | null> {
     full_name: string | null;
     role: SessionUser["role"];
   }>(
-    `select u.id, u.email, u.full_name, u.role, u.phone
+    `select u.id, u.email, u.full_name, u.role, u.phone, (u.password_hash is not null) as has_password
        from app_sessions s join app_users u on u.id = s.user_id
       where s.token_hash = $1 and s.expires_at > now()`,
     [tokenHash],

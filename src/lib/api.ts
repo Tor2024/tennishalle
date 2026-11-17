@@ -39,6 +39,7 @@ export interface AppUser {
   full_name: string | null
   role: 'member' | 'owner' | 'admin'
   phone?: string | null
+  has_password?: boolean
 }
 
 export interface DayOverview {
@@ -125,6 +126,14 @@ export async function me(): Promise<AppUser | null> {
   } catch {
     return null
   }
+}
+
+export async function updateProfile(body: { full_name: string; phone: string }): Promise<{ ok: boolean; user?: AppUser; message?: string }> {
+  return apiAuth('update_profile', body)
+}
+
+export async function changePassword(body: { current: string; next: string }): Promise<{ ok: boolean; message?: string }> {
+  return apiAuth('change_password', body)
 }
 
 export function formatPrice(value: number | null | undefined, currency = 'EUR'): string {
