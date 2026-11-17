@@ -216,16 +216,16 @@ export function Aktuelles() {
                         <span className="hm-promo-spin" aria-hidden="true">
                           <svg viewBox="0 0 100 100" className="hm-spin-svg">
                             <defs>
-                              <path id={`spinOuter-${p.id}`} d="M 50,50 m -36,0 a 36,36 0 1,1 72,0 a 36,36 0 1,1 -72,0" />
-                              <path id={`spinInner-${p.id}`} d="M 50,50 m -22,0 a 22,22 0 1,1 44,0 a 22,22 0 1,1 -44,0" />
+                              <path id={`spinOuter-${p.id}`} d="M 50,50 m -38,0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0" />
+                              <path id={`spinInner-${p.id}`} d="M 50,50 m -23,0 a 23,23 0 1,1 46,0 a 23,23 0 1,1 -46,0" />
                             </defs>
                             <g className="hm-spin-outer">
-                              <text fontSize="10.5" letterSpacing="2.5">
+                              <text fontSize="9" letterSpacing="2">
                                 <textPath href={`#spinOuter-${p.id}`}>AKTUELLES ANGEBOT · AKTUELLES ANGEBOT ·</textPath>
                               </text>
                             </g>
                             <g className="hm-spin-inner">
-                              <text fontSize="10.5" letterSpacing="2.5">
+                              <text fontSize="7.5" letterSpacing="1.5">
                                 <textPath href={`#spinInner-${p.id}`}>{`${(p.cta_label || 'JETZT BUCHEN').toUpperCase()} · ${(p.cta_label || 'JETZT BUCHEN').toUpperCase()} ·`}</textPath>
                               </text>
                             </g>
