@@ -794,7 +794,7 @@
 .hm-promo-spin {
   position: absolute; top: 12px; right: 12px;
   width: 92px; height: 92px; border-radius: 999px;
-  background: color-mix(in oklab, var(--color-foreground-950) 78%, transparent);
+  background: color-mix(in oklab, var(--color-background-50) 82%, transparent);
   backdrop-filter: blur(6px);
   border: 1px solid color-mix(in oklab, var(--hm-lime) 35%, transparent);
   display: flex; align-items: center; justify-content: center;
