@@ -792,7 +792,7 @@
   border: 1px solid color-mix(in oklab, var(--hm-lime) 35%, transparent);
 }
 .hm-promo-spin {
-  position: absolute; top: 12px; right: 12px;
+  position: absolute; bottom: 12px; left: 12px;
   width: 92px; height: 92px; border-radius: 999px;
   background: color-mix(in oklab, var(--color-background-50) 82%, transparent);
   backdrop-filter: blur(6px);
@@ -807,7 +807,7 @@
 @media (prefers-reduced-motion: reduce) {
   .hm-promo-spin .hm-spin-outer, .hm-promo-spin .hm-spin-inner { animation: none; }
 }
-@media (max-width: 640px) { .hm-promo-spin { width: 72px; height: 72px; top: 10px; right: 10px; } .hm-promo-spin > i { font-size: 18px; } }
+@media (max-width: 640px) { .hm-promo-spin { width: 72px; height: 72px; bottom: 10px; left: 10px; } .hm-promo-spin > i { font-size: 18px; } }
 .hm-promo-ph {
   display: flex; align-items: center; justify-content: center;
   aspect-ratio: 16 / 9;
