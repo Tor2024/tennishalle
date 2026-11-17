@@ -124,8 +124,8 @@ export function Aktuelles() {
   const tournamentList = tournaments
   const newsList = news ?? []
 
-  // featured = latest news with an image among the first three, else the latest one
-  const featured = newsList.slice(0, 3).find((n) => n.image_path) ?? newsList[0]
+  // featured = latest news with an image, else the latest one
+  const featured = newsList.find((n) => n.image_path) ?? newsList[0]
   const restNews = featured ? newsList.filter((n) => n.id !== featured.id) : newsList
 
   const openNews = (n: NewsRow) =>
