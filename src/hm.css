@@ -603,7 +603,15 @@
 /* compact 3-col news grid */
 .hm-news-grid3 { display: grid; gap: 20px; grid-template-columns: 1fr; margin-top: 24px; }
 @media (min-width: 640px) { .hm-news-grid3 { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1024px) { .hm-news-grid3 { grid-template-columns: 1fr 1fr 1fr; } }
+@media (min-width: 1024px) { .hm-news-grid3 { grid-template-columns: repeat(6, 1fr); } }
+/* editorial layout: first two cards large (half row each), rest compact 3-col */
+@media (min-width: 1024px) {
+  .hm-news-grid3 > .hm-news-mini:nth-child(-n+2) { grid-column: span 3; }
+  .hm-news-grid3 > .hm-news-mini:nth-child(n+3) { grid-column: span 2; }
+  .hm-news-grid3 > .hm-news-mini:nth-child(-n+2) .hm-mini-media { height: 230px; }
+  .hm-news-grid3 > .hm-news-mini:nth-child(-n+2) .hm-mini-title { font-size: 21px; }
+  .hm-news-grid3 > .hm-news-mini:nth-child(-n+2) .hm-mini-lead { font-size: 14.5px; -webkit-line-clamp: 3; }
+}
 .hm-news-mini {
   display: flex; flex-direction: column; overflow: hidden;
   border-radius: 16px; border: 1px solid var(--hm-line);
