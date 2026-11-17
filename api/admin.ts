@@ -629,7 +629,7 @@ async function deleteTournament(body: Record<string, unknown>) {
 }
 
 async function tournamentEntries(body: Record<string, unknown>) {
-  const id = typeof body.id === 'string' ? body.id : ''
+  const id = typeof (body.tournament_id ?? body.id) === 'string' ? String(body.tournament_id ?? body.id) : ''
   if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
   const r = await db().query(
     `select e.id, e.partner_name, e.note, e.created_at, u.full_name, u.email, u.phone
