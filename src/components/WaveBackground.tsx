@@ -30,7 +30,7 @@ float noise(vec2 p) {
 float fbm(vec2 p) {
   float v = 0.0, a = 0.5;
   mat2 r = mat2(0.8, 0.6, -0.6, 0.8);
-  for (int i = 0; i < 5; i++) { v += a * noise(p); p = r * p * 2.03; a *= 0.55; }
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p = r * p * 2.03; a *= 0.55; }
   return v;
 }
 
@@ -39,48 +39,51 @@ void main() {
   float aspect = u_res.x / u_res.y;
   vec2 p = uv * vec2(aspect, 1.0);
   vec2 m = (u_mouse - 0.5) * vec2(aspect, 1.0);
-  float influence = exp(-length(p - m) * 2.2);
+  float influence = exp(-length(p - m) * 1.8);
 
-  float t = u_time * 0.06;
-  vec2 q = vec2(fbm(p * 1.4 + vec2(0.0, t)), fbm(p * 1.4 + vec2(5.2, 1.3) - t));
-  vec2 r2 = vec2(fbm(p * 1.8 + 2.2 * q + vec2(1.7, 9.2) + t * 1.2),
-                 fbm(p * 1.8 + 2.4 * q + vec2(8.3, 2.8) - t));
-  float f = fbm(p * 1.6 + 2.0 * r2);
+  float t = u_time * 0.12;
 
-  // diagonal silky filaments
-  float ang = 0.55;
-  mat2 R = mat2(cos(ang), -sin(ang), sin(ang), cos(ang));
-  vec2 pp = R * p;
-  float wave = pp.x * 2.6 + f * 2.4 + q.x * 1.2 + influence * 1.5;
-  float band = abs(sin(wave * 3.14159));
-  float ridge = pow(1.0 - band, 6.0);
-  float glow = pow(1.0 - band, 2.0) * 0.35;
+  // silky diagonal light threads: layered glowing curves,
+  // each = slow sine drift + gentle fbm wobble (NO harsh turbulence)
+  float acc = 0.0;
+  for (int i = 0; i < 4; i++) {
+    float fi = float(i);
+    float base = 0.34 + fi * 0.11;
+    float wob = fbm(vec2(p.x * 1.1 + fi * 3.1, t * 0.45 + fi * 1.7)) - 0.5;
+    float curve = base
+      + wob * 0.30
+      + 0.05 * sin(p.x * 1.9 + t * (0.6 + fi * 0.21) + fi * 2.1)
+      + influence * 0.10;
+    float d = abs(p.y - curve);
+    float w = 0.010 + 0.016 * fi;
+    float core = exp(-d * d / (w * w));
+    float halo = exp(-d * d / (w * w * 11.0)) * 0.22;
+    acc += (core + halo) * (0.8 - 0.13 * fi);
+  }
 
-  // strongest through the middle diagonal, quiet at the edges
-  float diag = exp(-pow((pp.y - 0.45) * 2.2, 2.0));
-  float amp = ridge * (0.5 + 0.9 * diag + 0.8 * influence) + glow * diag;
+  // threads live in a mid diagonal band, fade to section edges
+  float env = exp(-pow((p.y - 0.47) * 1.9, 2.0));
+  acc *= env;
+  acc *= smoothstep(0.0, 0.14, uv.x) * smoothstep(1.0, 0.86, uv.x)
+       * smoothstep(0.0, 0.16, uv.y) * smoothstep(1.0, 0.84, uv.y);
+  acc += influence * 0.12 * env;
 
   vec3 lime = vec3(0.839, 0.965, 0.353);
-  vec3 green = vec3(0.18, 0.32, 0.20);
-  vec3 col = mix(green, lime, clamp(amp * 1.4, 0.0, 1.0));
-  float alpha = clamp(amp, 0.0, 1.0) * 0.9;
+  vec3 green = vec3(0.10, 0.22, 0.13);
+  vec3 col = mix(green, lime, clamp(acc, 0.0, 1.0));
+  float alpha = clamp(acc * 0.85, 0.0, 1.0);
 
   // sparse twinkling sparkles on a hash grid
-  vec2 gp = uv * u_res / 90.0;
+  vec2 gp = uv * u_res / 110.0;
   vec2 gi = floor(gp);
   vec2 gf = fract(gp);
   float h = hash(gi);
   vec2 spos = vec2(hash(gi + 1.3), hash(gi + 7.7));
-  float d = length(gf - spos);
+  float d2 = length(gf - spos);
   float tw = 0.5 + 0.5 * sin(u_time * (0.6 + h * 1.8) + h * 40.0);
-  float spark = smoothstep(0.10, 0.0, d) * step(0.985, h) * tw;
-  col += lime * spark * 1.2;
+  float spark = smoothstep(0.09, 0.0, d2) * step(0.986, h) * tw * 0.9;
+  col += lime * spark;
   alpha = clamp(alpha + spark, 0.0, 1.0);
-
-  // fade at the section edges for a seamless blend into the page
-  float edge = smoothstep(0.0, 0.12, uv.x) * smoothstep(1.0, 0.88, uv.x)
-             * smoothstep(0.0, 0.18, uv.y) * smoothstep(1.0, 0.82, uv.y);
-  alpha *= edge;
 
   gl_FragColor = vec4(col * alpha, alpha);
 }`
