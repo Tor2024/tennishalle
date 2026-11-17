@@ -609,7 +609,7 @@
   border-radius: 16px; border: 1px solid var(--hm-line);
   background: color-mix(in oklab, var(--color-foreground-950) 3%, transparent);
 }
-.hm-mini-media { padding: 0; border: 0; background: none; cursor: pointer; display: block; height: 150px; }
+.hm-mini-media { position: relative; padding: 0; border: 0; background: none; cursor: pointer; display: block; height: 150px; overflow: hidden; border-radius: 16px 16px 0 0; }
 .hm-mini-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .hm-news-ph {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
