@@ -1139,7 +1139,7 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
 interface AdminPost { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null; icon: string | null; cta_label: string | null; cta_link: string | null }
 interface AdminEvent { id: string; kind: string; title: string; participants: string | null; starts_at: string; ends_at: string | null; description: string | null; is_published: boolean }
 interface AdminTournament { id: string; title: string; description: string | null; format: 'single' | 'double'; fee_cents: number; starts_at: string; registration_deadline: string | null; max_entries: number | null; status: 'announcement' | 'registration' | 'running' | 'finished'; is_published: boolean; image_path: string | null; entry_count: number }
-interface AdminTournamentEntry { id: string; full_name: string; email: string; phone: string | null; partner_name: string | null; note: string | null; created_at: string }
+interface AdminTournamentEntry { id: string; full_name: string; email: string; phone: string | null; partner_name: string | null; note: string | null; created_at: string; paid: boolean; paid_at: string | null }
 const TOURNAMENT_STATUS = [
   { id: 'announcement', label: 'Angekündigt' },
   { id: 'registration', label: 'Anmeldung läuft' },
@@ -1623,6 +1623,16 @@ function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament
       <div className="ro-card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <p className="ro-eyebrow text-primary-500">Anmeldungen</p>
         <h3 className="mt-2 ro-card-title truncate">{tournament.title}</h3>
+        {entries !== null && entries.length > 0 && (() => {
+          const paidCount = entries.filter((e) => e.paid).length
+          const feeSum = entries.filter((e) => e.paid).length * tournament.fee_cents
+          return (
+            <p className="mt-2 text-[13px] text-foreground-600">
+              {paidCount}/{entries.length} bezahlt{tournament.fee_cents > 0 ? ` · ${(feeSum / 100).toFixed(2).replace('.', ',')} € eingenommen` : ''}
+              <InfoHint text="Bezahlt wird vor Ort im Verein. Markiere einen Teilnehmer nach dem Zahlungseingang mit dem Schalter „Bezahlt“. Die Summe zeigt eingenommene Startgebühren." />
+            </p>
+          )
+        })()}
         {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
         {entries === null ? (
           <p className="mt-5 text-[14px] text-foreground-600">Wird geladen…</p>
@@ -1639,16 +1649,30 @@ function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament
                     {e.partner_name && <p className="text-[12px] text-foreground-600 mt-0.5">Partner: {e.partner_name}</p>}
                     {e.note && <p className="text-[12px] text-foreground-600 mt-0.5">Notiz: {e.note}</p>}
                   </div>
-                  <ConfirmButton
-                    label="Entfernen"
-                    confirmLabel="Wirklich entfernen?"
-                    cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60 shrink-0"
-                    onConfirm={async () => {
-                      const r = await apiAdmin<{ ok: boolean; message?: string }>('remove_entry', { id: e.id })
-                      if (r.ok) { load(); onChanged() }
-                      else setError(r.message ?? 'Fehler')
-                    }}
-                  />
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {tournament.fee_cents > 0 && (
+                      <button
+                        onClick={async () => {
+                          const r = await apiAdmin<{ ok: boolean; message?: string }>('mark_entry_paid', { id: e.id, paid: !e.paid })
+                          if (r.ok) { load(); onChanged() }
+                          else setError(r.message ?? 'Fehler')
+                        }}
+                        className={`h-8 px-3 rounded-full border text-[12px] cursor-pointer ${e.paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-500 font-semibold' : 'border-foreground-950/20 text-foreground-600 hover:border-primary-500/60'}`}
+                      >
+                        <i className={e.paid ? 'ri-checkbox-circle-line' : 'ri-price-tag-line'} />{e.paid ? 'Bezahlt' : 'Offen'}
+                      </button>
+                    )}
+                    <ConfirmButton
+                      label="Entfernen"
+                      confirmLabel="Wirklich entfernen?"
+                      cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60"
+                      onConfirm={async () => {
+                        const r = await apiAdmin<{ ok: boolean; message?: string }>('remove_entry', { id: e.id })
+                        if (r.ok) { load(); onChanged() }
+                        else setError(r.message ?? 'Fehler')
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
