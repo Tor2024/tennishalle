@@ -12,6 +12,7 @@ interface TournamentRow {
   starts_at: string; registration_deadline: string | null; max_entries: number | null; status: 'announcement' | 'registration' | 'running' | 'finished'
   image_path: string | null; entry_count: number
 }
+interface OpenPost { title: string; lead: string | null; body: string | null; image_path: string | null; meta: string; cta_label?: string; cta_link?: string }
 
 const STATUS_LABEL: Record<TournamentRow['status'], string> = {
   announcement: 'Angekündigt',
@@ -54,6 +55,10 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/Berlin' })
 }
 
+function newsMeta(n: NewsRow): string {
+  return [fmtDate(n.published_at), n.author_name].filter(Boolean).join(' · ')
+}
+
 // structure verbatim from prod bundle home.js (#aktuelles template); data from DB with static fallback
 export function Aktuelles() {
   const [news, setNews] = useState<NewsRow[] | null>(null)
@@ -63,6 +68,7 @@ export function Aktuelles() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof me>>>(null)
   const [regMsg, setRegMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null)
   const [regBusy, setRegBusy] = useState<string | null>(null)
+  const [openPost, setOpenPost] = useState<OpenPost | null>(null)
 
   useEffect(() => {
     me().then(setUser)
@@ -86,6 +92,17 @@ export function Aktuelles() {
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!openPost) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenPost(null) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [openPost])
+
   const doRegister = async (t: TournamentRow) => {
     if (!user) return
     setRegBusy(t.id)
@@ -107,6 +124,31 @@ export function Aktuelles() {
   const tournamentList = tournaments
   const newsList = news ?? []
 
+  // featured = latest news with an image among the first three, else the latest one
+  const featured = newsList.slice(0, 3).find((n) => n.image_path) ?? newsList[0]
+  const restNews = featured ? newsList.filter((n) => n.id !== featured.id) : newsList
+
+  const openNews = (n: NewsRow) =>
+    setOpenPost({ title: n.title, lead: n.lead, body: n.body, image_path: n.image_path, meta: newsMeta(n) })
+  const openPromo = (p: PromoRow) =>
+    setOpenPost({
+      title: p.title, lead: p.lead, body: p.body, image_path: null,
+      meta: [fmtDate(p.published_at), p.author_name].filter(Boolean).join(' · '),
+      cta_label: p.cta_label || 'Jetzt buchen', cta_link: p.cta_link || '/book',
+    })
+  const openTournament = (t: TournamentRow) =>
+    setOpenPost({
+      title: t.title, lead: null, body: t.description, image_path: t.image_path,
+      meta: `${new Date(t.starts_at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin' })} Uhr${t.fee_cents > 0 ? ` · ${t.fee_cents / 100} € Startgebühr` : ''}`,
+    })
+
+  const media = (path: string | null, cls: string) =>
+    path ? <img className={cls} src={path} alt="" loading="lazy" /> : (
+      <span className="hm-news-ph"><i className="ri-tennis-line" aria-hidden="true" /></span>
+    )
+
+  const richCls = `hm-news-text [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5 [&_strong]:text-foreground-950`
+
   return (
     <section id="aktuelles" className="hm-section scroll-mt-20" aria-labelledby="aktuelles-title">
       <div className="ro-container">
@@ -119,61 +161,78 @@ export function Aktuelles() {
               </h2>
             </div>
           </div>
-          <div className="hm-news-layout">
-            <div className="hm-news-cards">
-              {newsList.map((n) => {
-                const meta = [fmtDate(n.published_at), n.author_name].filter(Boolean).join(' · ')
-                return (
-                <article key={n.id} className="ro-card hm-news-card">
-                  <p className="ro-eyebrow text-primary-500">Verein</p>
-                  <h3 className="ro-card-title ro-grad-lime mt-2">{n.title}</h3>
-                  {n.lead && <p className="hm-news-text !text-primary-400 font-medium">{n.lead}</p>}
-                  {n.body && <RichText body={n.body} className="hm-news-text [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5 [&_strong]:text-foreground-950" />}
-                  {meta && (
-                    <p className="mt-3 text-xs text-foreground-600 flex items-center gap-1.5">
-                      <i className="ri-time-line text-[13px]" />
-                      {meta}
-                    </p>
-                  )}
-                  <a href="#court-list" className="hm-textlink">
-                    Zu den Plätzen <i className="ri-arrow-right-line" />
-                  </a>
-                </article>
-                )
-              })}
-            </div>
-            <div className="hm-promo-col">
-            {(promo ?? []).slice(0, 3).map((p) => {
-              const ctaLabel = p.cta_label || 'Jetzt buchen'
-              const ctaTo = p.cta_link || '/book'
-              const ctaInner = <>{ctaLabel} <i className="ri-arrow-right-up-line" /></>
-              const ctaCls = 'hm-btn hm-btn-lime mt-auto self-start'
-              return (
-                <div key={p.id} className="hm-promo-card flex flex-col">
-                  <p className="hm-promo-pill">Angebot</p>
-                  {p.icon && <i className={`${p.icon} text-[26px] text-primary-500 mt-3`} />}
-                  <p className="hm-promo-title">{p.title}</p>
-                  {p.lead && <p className="hm-promo-sub !text-primary-400 font-medium">{p.lead}</p>}
-                  {p.body && <RichText body={p.body} className="hm-promo-sub [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5" />}
-                  {(() => {
-                    const meta = [fmtDate(p.published_at), p.author_name].filter(Boolean).join(' · ')
-                    return meta ? (
-                      <p className="text-xs opacity-70 flex items-center gap-1.5 mt-4">
-                        <i className="ri-time-line text-[13px]" />
-                        {meta}
-                      </p>
-                    ) : null
-                  })()}
-                  {ctaTo.startsWith('/') || ctaTo.startsWith('#') ? (
-                    <Link to={ctaTo} className={ctaCls}>{ctaInner}</Link>
-                  ) : (
-                    <a href={ctaTo} target="_blank" rel="noreferrer" className={ctaCls}>{ctaInner}</a>
-                  )}
+
+          {featured && (
+            <article className="hm-feat-card">
+              <button type="button" className="hm-feat-media" onClick={() => openNews(featured)} aria-label={`${featured.title} — weiterlesen`}>
+                {media(featured.image_path, 'hm-feat-img')}
+              </button>
+              <div className="hm-feat-body">
+                <p className="ro-eyebrow text-primary-500">{newsMeta(featured) || 'Aktuell'}</p>
+                <h3 className="hm-feat-title">{featured.title}</h3>
+                {featured.lead && <p className="hm-feat-lead">{featured.lead}</p>}
+                <button type="button" onClick={() => openNews(featured)} className="hm-textlink mt-auto">
+                  Weiterlesen <i className="ri-arrow-right-line" />
+                </button>
+              </div>
+            </article>
+          )}
+
+          <div className="hm-news-grid3">
+            {restNews.map((n) => (
+              <article key={n.id} className="hm-news-mini">
+                <button type="button" className="hm-mini-media" onClick={() => openNews(n)} aria-label={`${n.title} — weiterlesen`}>
+                  {media(n.image_path, 'hm-mini-img')}
+                </button>
+                <div className="hm-mini-body">
+                  <p className="hm-mini-meta">{newsMeta(n)}</p>
+                  <h3 className="hm-mini-title">{n.title}</h3>
+                  {n.lead && <p className="hm-mini-lead">{n.lead}</p>}
+                  <button type="button" onClick={() => openNews(n)} className="hm-textlink mt-auto">
+                    Weiterlesen <i className="ri-arrow-right-line" />
+                  </button>
                 </div>
-              )
-            })}
-            </div>
+              </article>
+            ))}
           </div>
+
+          {(promo ?? []).length > 0 && (
+            <div className="mt-12">
+              <div className="hm-events-head">
+                <p className="ro-eyebrow text-primary-500">Angebote</p>
+                <h3 className="hm-events-title">Aktuelle Angebote</h3>
+              </div>
+              <div className="hm-promo-strip">
+                {(promo ?? []).slice(0, 3).map((p) => {
+                  const ctaLabel = p.cta_label || 'Jetzt buchen'
+                  const ctaTo = p.cta_link || '/book'
+                  const ctaInner = <>{ctaLabel} <i className="ri-arrow-right-up-line" /></>
+                  const ctaCls = 'hm-btn hm-btn-lime mt-auto self-start'
+                  return (
+                    <div key={p.id} className="hm-promo-card flex flex-col">
+                      <p className="hm-promo-pill">Angebot</p>
+                      {p.icon && <i className={`${p.icon} text-[26px] mt-3`} />}
+                      <p className="hm-promo-title !text-[19px]">{p.title}</p>
+                      {p.lead && <p className="hm-promo-sub line-clamp-2">{p.lead}</p>}
+                      <div className="flex flex-wrap items-center gap-4 mt-4">
+                        {ctaTo.startsWith('/') || ctaTo.startsWith('#') ? (
+                          <Link to={ctaTo} className={ctaCls}>{ctaInner}</Link>
+                        ) : (
+                          <a href={ctaTo} target="_blank" rel="noreferrer" className={ctaCls}>{ctaInner}</a>
+                        )}
+                        {p.body && (
+                          <button type="button" onClick={() => openPromo(p)} className="hm-textlink">
+                            Details <i className="ri-arrow-right-line" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {tournamentList.length > 0 && (
             <div className="hm-events mt-10">
               <div className="hm-events-head">
@@ -205,29 +264,36 @@ export function Aktuelles() {
                       {t.registration_deadline && reg && (
                         <p className="text-[12px] text-foreground-500 mt-1.5">Anmeldung bis {fmtDate(t.registration_deadline)}{t.max_entries != null ? ` · ${t.entry_count}/${t.max_entries} gemeldet` : ` · ${t.entry_count} gemeldet`}</p>
                       )}
-                      {t.description && <RichText body={t.description} className="hm-news-text mt-3 [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5" />}
                       {regMsg && regMsg.id === t.id && (
                         <p className={`mt-3 text-[13px] ${regMsg.ok ? 'text-primary-400' : 'text-red-300'}`}>{regMsg.text}</p>
                       )}
-                      {reg && (
-                        user ? (
-                          <button
-                            onClick={() => doRegister(t)}
-                            disabled={regBusy === t.id || full}
-                            className={`hm-btn hm-btn-lime mt-4 self-start ${full ? 'opacity-50 pointer-events-none' : ''}`}
-                          >
-                            {full ? 'Ausgebucht' : 'Melden'} <i className="ri-arrow-right-up-line" />
+                      <div className="flex flex-wrap items-center gap-4 mt-3">
+                        {reg && (
+                          user ? (
+                            <button
+                              onClick={() => doRegister(t)}
+                              disabled={regBusy === t.id || full}
+                              className={`hm-btn hm-btn-lime ${full ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                              {full ? 'Ausgebucht' : 'Melden'} <i className="ri-arrow-right-up-line" />
+                            </button>
+                          ) : (
+                            <Link to="/sign-in" className="hm-textlink">Zum Melden anmelden <i className="ri-arrow-right-line" /></Link>
+                          )
+                        )}
+                        {t.description && (
+                          <button type="button" onClick={() => openTournament(t)} className="hm-textlink">
+                            Details <i className="ri-arrow-right-line" />
                           </button>
-                        ) : (
-                          <Link to="/sign-in" className="hm-textlink mt-4 self-start">Zum Melden anmelden <i className="ri-arrow-right-line" /></Link>
-                        )
-                      )}
+                        )}
+                      </div>
                     </div>
                   )
                 })}
               </div>
             </div>
           )}
+
           {eventList.length > 0 && (
             <div className="hm-events mt-6">
               <div className="hm-events-head">
@@ -263,6 +329,38 @@ export function Aktuelles() {
           )}
         </Reveal>
       </div>
+
+      {openPost && (
+        <div className="hm-modal-overlay" onClick={() => setOpenPost(null)} role="presentation">
+          <div className="hm-modal" role="dialog" aria-modal="true" aria-label={openPost.title} onClick={(e) => e.stopPropagation()}>
+            {openPost.image_path && <img className="hm-modal-img" src={openPost.image_path} alt="" />}
+            <button type="button" className="hm-modal-close" onClick={() => setOpenPost(null)} aria-label="Schließen">
+              <i className="ri-close-line" />
+            </button>
+            <div className="hm-modal-body">
+              {openPost.meta && (
+                <p className="hm-mini-meta flex items-center gap-1.5">
+                  <i className="ri-time-line text-[13px]" />
+                  {openPost.meta}
+                </p>
+              )}
+              <h3 className="hm-feat-title !text-[24px] mt-2">{openPost.title}</h3>
+              {openPost.lead && <p className="hm-feat-lead !text-primary-400 font-medium mt-2">{openPost.lead}</p>}
+              {openPost.body && <RichText body={openPost.body} className={`${richCls} mt-3`} />}
+              <div className="flex flex-wrap items-center gap-4 mt-5">
+                {openPost.cta_link && (
+                  openPost.cta_link.startsWith('/') || openPost.cta_link.startsWith('#') ? (
+                    <Link to={openPost.cta_link} className="hm-btn hm-btn-lime">{openPost.cta_label} <i className="ri-arrow-right-up-line" /></Link>
+                  ) : (
+                    <a href={openPost.cta_link} target="_blank" rel="noreferrer" className="hm-btn hm-btn-lime">{openPost.cta_label} <i className="ri-arrow-right-up-line" /></a>
+                  )
+                )}
+                <button type="button" onClick={() => setOpenPost(null)} className="hm-textlink">Schließen <i className="ri-arrow-right-line" /></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
