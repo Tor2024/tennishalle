@@ -309,7 +309,7 @@ export function AccountPage() {
                 <div className="ro-card p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="min-w-0">
                     <p className="ro-eyebrow text-foreground-500">Dein Profil</p>
-                    <p className="mt-2 font-heading text-2xl heading-tight">{user.full_name || user.email}</p>
+                    <p className="mt-2 font-heading text-2xl heading-tight ro-grad-lime">{user.full_name || user.email}</p>
                     <p className="mt-1 text-sm text-foreground-600 break-all">
                       {user.email}
                       {user.phone ? <span className="text-foreground-500"> · {user.phone}</span> : null}
