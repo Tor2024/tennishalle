@@ -63,6 +63,18 @@ interface StatsData {
   statuses: { status: string; cnt: string }[]
   lead: { lead_bucket: string; cnt: string }[]
   topCustomers: { customer_name: string; customer_email: string; bookings: string; revenue: string }[]
+  attention?: {
+    pending: number
+    messages_unread: number
+    upcoming: { id: string; reference: string; court_name: string; start_at: string; end_at: string; customer_name: string; status: string }[]
+  }
+  traffic?: {
+    views_total: number
+    days_unique: number
+    views_today: number
+    views_yesterday: number
+    top_paths: { path: string; cnt: string }[]
+  }
 }
 
 interface AdminReservation {
@@ -299,20 +311,60 @@ function BlockModal({ courts, defaultDate, onClose, onSaved }: { courts: Court[]
 const WD_SHORT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
 const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
 
-function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function KpiCard({ label, value, sub, hint, delta }: { label: string; value: string; sub?: string; hint?: string; delta?: { dir: 'up' | 'down' | 'flat'; text: string } }) {
   return (
-    <div className="ro-card p-4 md:p-5">
-      <p className="ro-eyebrow text-foreground-600">{label}</p>
+    <div className="ro-card p-4 md:p-5 group relative">
+      <p className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">
+        {label}
+        {hint && (
+          <span className="relative inline-flex cursor-help" tabIndex={0}>
+            <i className="ri-question-line text-[13px] text-foreground-500" />
+            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 z-20 rounded-md bg-background-950 text-background-50 text-[11px] leading-snug px-3 py-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shadow-lg">
+              {hint}
+            </span>
+          </span>
+        )}
+      </p>
       <p className="mt-2 font-heading text-[28px] md:text-[32px] leading-none text-foreground-950 tabular-nums">{value}</p>
+      {delta && (
+        <p className={`mt-1.5 text-[12px] tabular-nums flex items-center gap-1 ${delta.dir === 'up' ? 'text-primary-600' : delta.dir === 'down' ? 'text-red-400' : 'text-foreground-600'}`}>
+          <i className={delta.dir === 'up' ? 'ri-arrow-up-line' : delta.dir === 'down' ? 'ri-arrow-down-line' : 'ri-subtract-line'} />
+          {delta.text}
+        </p>
+      )}
       {sub && <p className="mt-1.5 text-[12px] text-foreground-600">{sub}</p>}
     </div>
   )
 }
 
-function OverviewTab({ catalog }: { catalog: Catalog }) {
+/** ring gauge for utilization (0..1) */
+function UtilRing({ value }: { value: number }) {
+  const pct = Math.min(1, Math.max(0, value))
+  const deg = Math.round(pct * 360)
+  return (
+    <div className="relative w-[104px] h-[104px] shrink-0 rounded-full" style={{ background: `conic-gradient(var(--color-primary-500) ${deg}deg, rgba(0,0,0,0.06) 0deg)` }} role="img" aria-label={`Auslastung ${Math.round(pct * 100)} Prozent`}>
+      <div className="absolute inset-[10px] rounded-full bg-background-50 flex flex-col items-center justify-center">
+        <span className="font-heading text-[24px] leading-none text-foreground-950 tabular-nums">{Math.round(pct * 100)}%</span>
+        <span className="mt-1 text-[10px] text-foreground-600">30 Tage</span>
+      </div>
+    </div>
+  )
+}
+
+function InfoHint({ text }: { text: string }) {
+  return (
+    <span className="relative inline-flex group/hint cursor-help" tabIndex={0}>
+      <i className="ri-question-line text-[13px] text-foreground-500" />
+      <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-56 z-20 rounded-md bg-background-950 text-background-50 text-[11px] leading-snug px-3 py-2 opacity-0 group-hover/hint:opacity-100 focus-within:opacity-100 transition-opacity shadow-lg">
+        {text}
+      </span>
+    </span>
+  )
+}
+
+function OverviewTab({ onNavigate }: { catalog: Catalog; onNavigate: (tab: (typeof TABS)[number]['id']) => void }) {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [error, setError] = useState('')
-  const currency = catalog.settings?.currency ?? 'EUR'
 
   function load() {
     setError('')
@@ -341,87 +393,186 @@ function OverviewTab({ catalog }: { catalog: Catalog }) {
   const dayViews = stats.perDay.map((d) => Number(d.views))
   const monthBookings = stats.perMonth.map((m) => Number(m.bookings))
   const monthLabels = stats.perMonth.map((m) => MONTH_SHORT[Number(m.month.slice(5, 7)) - 1] ?? m.month)
-  const monthRevenue = stats.perMonth.map((m) => Number(m.revenue) / 100)
   const weekdayMap = new Map(stats.perWeekday.map((w) => [Number(w.weekday), Number(w.bookings)]))
   const weekdayValues = [1, 2, 3, 4, 5, 6, 0].map((d) => weekdayMap.get(d) ?? 0)
   const weekdayLabels = [1, 2, 3, 4, 5, 6, 0].map((d) => WD_SHORT[d])
   const hourMap = new Map(stats.perHour.map((h) => [Number(h.hour), Number(h.bookings)]))
-  const hourValues: number[] = []
-  const hourLabels: string[] = []
-  for (let h = 6; h <= 23; h++) {
-    hourValues.push(hourMap.get(h) ?? 0)
-    hourLabels.push(String(h))
-  }
+  const hourMax = Math.max(1, ...stats.perHour.map((h) => Number(h.bookings)))
   const statusMap = new Map(stats.statuses.map((s) => [s.status, Number(s.cnt)]))
+  const statusTotal = Math.max(1, stats.statuses.reduce((a, s) => a + Number(s.cnt), 0))
   const leadOrder = ['<1 Tag', '1-2 Tage', '3-6 Tage', '1 Woche', '2-4 Wochen', '>1 Monat']
   const leadItems = leadOrder
     .map((b) => ({ label: b, value: Number(stats.lead.find((l) => l.lead_bucket === b)?.cnt ?? 0) }))
     .filter((i) => i.value > 0)
 
+  /* deltas: today vs 30-day daily average (bookings), today vs yesterday (views) */
+  const avgBookingsPerDay = dayBookings.length > 0 ? dayBookings.reduce((a, b) => a + b, 0) / dayBookings.length : 0
+  const bookingsDelta = avgBookingsPerDay > 0 ? (k.bookings.today - avgBookingsPerDay) / avgBookingsPerDay : 0
+  const attention = stats.attention
+  const traffic = stats.traffic
+  const viewsDelta = traffic && traffic.views_yesterday > 0 ? (traffic.views_today - traffic.views_yesterday) / traffic.views_yesterday : null
+  const todayKey = berlinToday()
+  const tomorrowKey = shiftDateKey(todayKey, 1)
+  const gamesToday = (attention?.upcoming ?? []).filter((g) => berlinDateKey(g.start_at) === todayKey)
+  const gamesTomorrow = (attention?.upcoming ?? []).filter((g) => berlinDateKey(g.start_at) === tomorrowKey)
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Buchungen heute" value={String(k.bookings.today)} />
-        <KpiCard label="Buchungen Woche" value={String(k.bookings.week)} />
-        <KpiCard label="Buchungen Monat" value={String(k.bookings.month)} />
-        <KpiCard label="Buchungen Jahr" value={String(k.bookings.year)} />
-        <KpiCard label="Umsatz heute" value={formatPrice(k.revenue_cents.today / 100, currency)} />
-        <KpiCard label="Umsatz Woche" value={formatPrice(k.revenue_cents.week / 100, currency)} />
-        <KpiCard label="Umsatz Monat" value={formatPrice(k.revenue_cents.month / 100, currency)} />
-        <KpiCard label="Umsatz Jahr" value={formatPrice(k.revenue_cents.year / 100, currency)} />
-        <KpiCard label="Kunden (1 Jahr)" value={String(k.customers)} />
-        <KpiCard label="Storniert" value={String(k.cancelled)} />
-        <KpiCard label="Auslastung 30 Tage" value={`${Math.round(k.utilization * 100)} %`} sub="bestätigte Slots / öffnungszeiten" />
-        <KpiCard label="Buchungen gesamt" value={String(k.bookings.total)} sub={formatPrice(k.revenue_cents.total / 100, currency)} />
+      {/* quick actions */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={() => onNavigate('bookings')} className="h-9 px-4 inline-flex items-center gap-2 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium cursor-pointer hover:bg-primary-400 transition-colors"><i className="ri-add-line" />Neue Buchung</button>
+        <button onClick={() => onNavigate('calendar')} className="h-9 px-4 inline-flex items-center gap-2 rounded-full border border-foreground-950/15 text-[13px] font-medium cursor-pointer hover:border-primary-500/60 transition-colors"><i className="ri-calendar-2-line" />Kalender</button>
+        <button onClick={() => onNavigate('calendar')} className="h-9 px-4 inline-flex items-center gap-2 rounded-full border border-foreground-950/15 text-[13px] font-medium cursor-pointer hover:border-primary-500/60 transition-colors"><i className="ri-lock-line" />Zeit sperren</button>
+        <button onClick={() => onNavigate('courts')} className="h-9 px-4 inline-flex items-center gap-2 rounded-full border border-foreground-950/15 text-[13px] font-medium cursor-pointer hover:border-primary-500/60 transition-colors"><i className="ri-layout-grid-line" />Plätze</button>
       </div>
 
+      {/* heute (hero) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="ro-card p-5 md:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="ro-card-title">Heute</h3>
+            <InfoHint text="Buchungen und Website-Besuche des heutigen Tags (Europe/Berlin). Pfeile zeigen die Abweichung: Buchungen heute gegenüber dem 30-Tage-Durchschnitt, Besuche gegenüber gestern." />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <KpiCard label="Buchungen heute" value={String(k.bookings.today)} delta={{ dir: bookingsDelta > 0.05 ? 'up' : bookingsDelta < -0.05 ? 'down' : 'flat', text: `vs Ø 30 Tage (${avgBookingsPerDay.toFixed(1)})` }} hint="Bestätigte und ausstehende Buchungen mit Beginn heute. Vergleich: Durchschnitt der letzten 30 Tage." />
+            <KpiCard label="Besuche heute" value={String(traffic?.views_today ?? 0)} delta={viewsDelta === null ? undefined : { dir: viewsDelta > 0.05 ? 'up' : viewsDelta < -0.05 ? 'down' : 'flat', text: `vs gestern (${traffic?.views_yesterday ?? 0})` }} hint="Seitenaufrufe der Website heute (alle Seiten, gezählt bei jedem Seitenaufruf)." />
+            <KpiCard label="Buchungen Woche" value={String(k.bookings.week)} hint="Buchungen mit Beginn in den letzten 7 Tagen (inklusive heute)." />
+            <KpiCard label="Buchungen Monat" value={String(k.bookings.month)} hint="Buchungen mit Beginn im laufenden Kalendermonat." />
+          </div>
+        </div>
+        <div className="ro-card p-5 md:p-6 flex items-center gap-6 flex-wrap">
+          <UtilRing value={k.utilization} />
+          <div className="min-w-0">
+            <h3 className="ro-card-title flex items-center gap-1.5">Auslastung <InfoHint text="Anteil gebuchter 30-Min-Slots an allen offenen Slots der Öffnungszeiten in den nächsten 30 Tagen. Nur bestätigte Buchungen zählen." /></h3>
+            <p className="mt-2 text-[13px] text-foreground-700">bestätigte 30-Min-Slots / offene Slots der Öffnungszeiten, nächste 30 Tage.</p>
+            <div className="mt-4 flex flex-wrap gap-2.5">
+              <span className="inline-flex items-center gap-2"><StatusChip status="pending" /><span className="text-[13px] tabular-nums text-foreground-800">{statusMap.get('pending') ?? 0}</span></span>
+              <span className="inline-flex items-center gap-2"><StatusChip status="confirmed" /><span className="text-[13px] tabular-nums text-foreground-800">{statusMap.get('confirmed') ?? 0}</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* attention (clickable) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <button onClick={() => onNavigate('bookings')} className="ro-card p-5 text-left cursor-pointer hover:border-primary-500/50 transition-colors">
+          <p className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Buchungen <InfoHint text="Buchungen mit Status „Ausstehend“ warten auf Bestätigung oder Ablehnung." /></p>
+          <p className="mt-2 font-heading text-[32px] leading-none text-foreground-950 tabular-nums">{attention?.pending ?? 0}</p>
+          <p className="mt-1.5 text-[12px] text-foreground-600 flex items-center gap-1">warten auf Bestätigung <i className="ri-arrow-right-line" /></p>
+        </button>
+        <button onClick={() => onNavigate('messages')} className="ro-card p-5 text-left cursor-pointer hover:border-primary-500/50 transition-colors">
+          <p className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Nachrichten <InfoHint text="Kontaktformular-Nachrichten, die noch als „offen“ markiert sind (nicht bearbeitet)." /></p>
+          <p className="mt-2 font-heading text-[32px] leading-none text-foreground-950 tabular-nums">{attention?.messages_unread ?? 0}</p>
+          <p className="mt-1.5 text-[12px] text-foreground-600 flex items-center gap-1">unbearbeitet <i className="ri-arrow-right-line" /></p>
+        </button>
+        <div className="ro-card p-5">
+          <p className="ro-eyebrow text-foreground-600 flex items-center justify-between gap-1.5">Spiele heute / morgen <InfoHint text="Nicht stornierte Buchungen mit Beginn heute oder morgen (Europe/Berlin)." /></p>
+          <ul className="mt-3 flex flex-col divide-y divide-foreground-950/[0.06] max-h-40 overflow-y-auto">
+            {[...gamesToday, ...gamesTomorrow].map((g) => (
+              <li key={g.id} className="py-2 flex items-center justify-between gap-3 text-[13px]">
+                <span className="min-w-0 truncate"><span className="font-semibold text-foreground-950">{berlinDateKey(g.start_at) === todayKey ? 'Heute' : 'Morgen'} {berlinTime(g.start_at)}</span><span className="ml-2 text-foreground-600">{g.court_name}</span></span>
+                <span className="shrink-0"><StatusChip status={g.status} /></span>
+              </li>
+            ))}
+            {gamesToday.length === 0 && gamesTomorrow.length === 0 && <li className="py-2 text-[13px] text-foreground-600">Keine Spiele geplant.</li>}
+          </ul>
+        </div>
+      </div>
+
+      {/* website traffic */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Panel title="Besuche — 30 Tage" right={<InfoHint text="Seitenaufrufe pro Tag (Summe über alle Pfade). Quelle: page_views, gezählt bei jedem Seitenaufruf." />}>
+          <Bars values={dayViews} labels={dayLabels} hint={(i) => `${stats.perDay[i].day}: ${dayViews[i]} Besuche`} />
+        </Panel>
+        <Panel title="Traffic gesamt">
+          <div className="grid grid-cols-2 gap-3">
+            <KpiCard label="Besuche total" value={String(traffic?.views_total ?? 0)} hint="Alle Seitenaufrufe seit Beginn der Aufzeichnung (page_views)." />
+            <KpiCard label="Tage mit Traffic" value={String(traffic?.days_unique ?? 0)} hint="Anzahl unterschiedlicher Tage mit mindestens einem Seitenaufruf." />
+          </div>
+        </Panel>
+        <Panel title="Beliebte Seiten" right={<InfoHint text="Top 10 Pfade nach Seitenaufrufen über alle Tage." />}>
+          {traffic && traffic.top_paths.length > 0 ? (
+            <HBars items={traffic.top_paths.map((p) => ({ label: p.path || '/', value: Number(p.cnt) }))} format={(n) => `${n}`} />
+          ) : (
+            <p className="text-[13px] text-foreground-600">Noch keine Daten.</p>
+          )}
+        </Panel>
+        <Panel title="Buchungen vs Besuche — 30 Tage" right={<InfoHint text="Gegenüberstellung: Buchungen und Besuche pro Tag. Zeigt, wie viel Traffic sich in Buchungen umsetzt." />}>
+          <div className="flex flex-col gap-4">
+            <div>
+              <p className="ro-eyebrow text-foreground-600 mb-2">Buchungen</p>
+              <Bars values={dayBookings} labels={dayLabels} hint={(i) => `${stats.perDay[i].day}: ${dayBookings[i]} Buchungen`} />
+            </div>
+            <div>
+              <p className="ro-eyebrow text-foreground-600 mb-2">Besuche</p>
+              <Bars values={dayViews} labels={dayLabels} hint={(i) => `${stats.perDay[i].day}: ${dayViews[i]} Besuche`} />
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* booking analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Buchungen — 30 Tage">
           <Bars values={dayBookings} labels={dayLabels} hint={(i) => `${stats.perDay[i].day}: ${dayBookings[i]} Buchungen`} />
         </Panel>
-        <Panel title="Besuche — 30 Tage">
-          <Bars values={dayViews} labels={dayLabels} hint={(i) => `${stats.perDay[i].day}: ${dayViews[i]} Besuche`} />
-        </Panel>
         <Panel title="Buchungen — 12 Monate">
           <Bars values={monthBookings} labels={monthLabels} hint={(i) => `${stats.perMonth[i].month}: ${monthBookings[i]} Buchungen`} />
-        </Panel>
-        <Panel title="Umsatz — 12 Monate">
-          <Bars values={monthRevenue} labels={monthLabels} hint={(i) => `${stats.perMonth[i].month}: ${formatPrice(monthRevenue[i], currency)}`} />
         </Panel>
         <Panel title="Wochentage (1 Jahr)">
           <Bars values={weekdayValues} labels={weekdayLabels} hint={(i) => `${weekdayLabels[i]}: ${weekdayValues[i]} Buchungen`} />
         </Panel>
-        <Panel title="Beliebte Zeiten (1 Jahr)">
-          <Bars values={hourValues} labels={hourLabels} hint={(i) => `${hourLabels[i]}:00 — ${hourValues[i]} Buchungen`} />
+        <Panel title="Beliebte Zeiten (1 Jahr)" right={<InfoHint text="Heatmap: Startstunde 6–23 Uhr, Sättigung = Anzahl der Buchungen (1 Jahr, ohne Stornierungen)." />}>
+          <div className="grid grid-cols-6 md:grid-cols-9 gap-1.5">
+            {Array.from({ length: 18 }, (_, idx) => {
+              const h = 6 + idx
+              const v = hourMap.get(h) ?? 0
+              const intensity = v / hourMax
+              return (
+                <div key={h} className="rounded-md aspect-square flex items-center justify-center text-[11px] tabular-nums" title={`${h}:00 — ${v} Buchungen`} style={{ backgroundColor: v > 0 ? `color-mix(in oklab, var(--color-primary-500) ${Math.round(15 + 85 * intensity)}%, transparent)` : 'rgba(0,0,0,0.04)', color: intensity > 0.5 ? 'var(--color-background-50, #fff)' : undefined }}>
+                  {h}
+                </div>
+              )
+            })}
+          </div>
         </Panel>
         <Panel title="Plätze im Vergleich (1 Jahr)">
           <HBars items={stats.perCourt.map((c) => ({ label: c.name, value: Number(c.bookings) }))} format={(n) => `${n}`} />
         </Panel>
-        <Panel title="Vorlaufzeit der Buchungen">
+        <Panel title="Vorlaufzeit der Buchungen" right={<InfoHint text="Zeit zwischen Buchungserstellung und Spielbeginn (Lead time). Zeigt, wie spontan Mitglieder buchen." />}>
           {leadItems.length > 0
             ? <HBars items={leadItems} format={(n) => `${n}`} />
             : <p className="text-[13px] text-foreground-600">Noch keine Daten.</p>}
         </Panel>
       </div>
 
+      {/* statuses + kundschaft */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Status aller Buchungen">
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-col gap-2.5">
             {[...statusMap.entries()].map(([s, c]) => (
-              <span key={s} className="inline-flex items-center gap-2">
-                <StatusChip status={s} />
-                <span className="text-[13px] tabular-nums text-foreground-800">{c}</span>
-              </span>
+              <div key={s} className="flex items-center gap-3 text-[13px]">
+                <span className="w-36 shrink-0"><StatusChip status={s} /></span>
+                <span className="flex-1 h-6 rounded-md bg-foreground-950/[0.05] relative overflow-hidden">
+                  <span className={`absolute inset-y-0 left-0 rounded-md ${STATUS_CLS[s]?.split(' ')[0] ?? 'bg-primary-500/60'}`} style={{ width: `${(c / statusTotal) * 100}%` }} />
+                </span>
+                <span className="w-24 text-right tabular-nums text-foreground-800">{c} · {Math.round((c / statusTotal) * 100)}%</span>
+              </div>
             ))}
             {statusMap.size === 0 && <p className="text-[13px] text-foreground-600">Noch keine Buchungen.</p>}
           </div>
         </Panel>
-        <Panel title="Top-Kunden">
+        <Panel title="Kundschaft">
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <KpiCard label="Kunden (1 Jahr)" value={String(k.customers)} hint="Anzahl unterschiedlicher E-Mail-Adressen mit mindestens einer Buchung in den letzten 12 Monaten." />
+            <KpiCard label="Storniert" value={String(k.cancelled)} hint="Anzahl aller stornierten Buchungen (gesamt)." />
+          </div>
+          <p className="ro-eyebrow text-foreground-600 mb-1">Top-Kunden <InfoHint text="Mitglieder mit den meisten Buchungen (ohne Umsatzangabe)." /></p>
           <ul className="flex flex-col divide-y divide-foreground-950/[0.06]">
             {stats.topCustomers.map((c, i) => (
               <li key={i} className="py-2.5 flex items-center justify-between gap-3 text-[13px]">
                 <span className="min-w-0 truncate"><span className="font-semibold text-foreground-950">{c.customer_name || c.customer_email}</span><span className="ml-2 text-foreground-600">{c.customer_email}</span></span>
-                <span className="shrink-0 tabular-nums text-foreground-800">{c.bookings} × {formatPrice(Number(c.revenue) / 100, currency)}</span>
+                <span className="shrink-0 tabular-nums text-foreground-800">{c.bookings} Buchungen</span>
               </li>
             ))}
             {stats.topCustomers.length === 0 && <li className="py-3 text-[13px] text-foreground-600">Noch keine Kunden.</li>}
@@ -1971,7 +2122,7 @@ export function AdminPage() {
         </div>
 
         <main className="px-4 md:px-10 py-6 md:py-10">
-          {tab === 'overview' && <OverviewTab catalog={catalog} />}
+          {tab === 'overview' && <OverviewTab catalog={catalog} onNavigate={setTab} />}
           {tab === 'courts' && <CourtsTab catalog={catalog} onCatalogReload={() => getBootstrap().then(setCatalog).catch(() => {})} />}          {tab === 'calendar' && <CalendarTab catalog={catalog} />}
           {tab === 'bookings' && <BookingsTab catalog={catalog} />}
 {tab === 'partners' && <PartnersTab />}

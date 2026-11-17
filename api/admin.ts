@@ -110,6 +110,30 @@ async function stats(_body: Record<string, unknown>) {
      )
      select open.n as open_slots, booked.n as booked_slots from open, booked`,
   )
+  // attention: pending bookings, unread messages, upcoming games (today+tomorrow)
+  const [pending, unread, upcoming] = await Promise.all([
+    db().query<{ cnt: string }>(`select count(*) as cnt from reservations where status = 'pending'`),
+    db().query<{ cnt: string }>(`select count(*) as cnt from contact_messages where handled = false`),
+    db().query<{ id: string; reference: string; court_name: string; start_at: string; end_at: string; customer_name: string; status: string }>(
+      `select r.id, r.reference, c.name as court_name, r.start_at, r.end_at, r.customer_name, r.status
+       from reservations r join courts c on c.id = r.court_id
+       where r.status <> 'cancelled'
+         and r.end_at >= date_trunc('day', now() at time zone 'Europe/Berlin')
+         and r.start_at < date_trunc('day', now() at time zone 'Europe/Berlin') + interval '2 days'
+       order by r.start_at limit 40`,
+    ),
+  ])
+  // traffic: page_views totals + top paths
+  const traffic = await db().query<{ views_total: string; days_unique: string; views_today: string; views_yesterday: string }>(
+    `select
+       (select coalesce(sum(cnt), 0) from page_views) as views_total,
+       (select count(distinct day) from page_views) as days_unique,
+       (select coalesce(sum(cnt), 0) from page_views where day = (now() at time zone 'Europe/Berlin')::date) as views_today,
+       (select coalesce(sum(cnt), 0) from page_views where day = (now() at time zone 'Europe/Berlin')::date - 1) as views_yesterday`,
+  )
+  const topPaths = await db().query<{ path: string; cnt: string }>(
+    `select path, sum(cnt) as cnt from page_views group by path order by cnt desc limit 10`,
+  )
   return json({
     ok: true,
     kpi: {
@@ -130,6 +154,18 @@ async function stats(_body: Record<string, unknown>) {
     perDay: perDay.rows, perMonth: perMonth.rows, perWeekday: perWeekday.rows,
     perHour: perHour.rows, perCourt: perCourt.rows, statuses: statuses.rows,
     lead: lead.rows, topCustomers: topCustomers.rows,
+    attention: {
+      pending: Number(pending.rows[0].cnt),
+      messages_unread: Number(unread.rows[0].cnt),
+      upcoming: upcoming.rows,
+    },
+    traffic: {
+      views_total: Number(traffic.rows[0].views_total),
+      days_unique: Number(traffic.rows[0].days_unique),
+      views_today: Number(traffic.rows[0].views_today),
+      views_yesterday: Number(traffic.rows[0].views_yesterday),
+      top_paths: topPaths.rows,
+    },
   })
 }
 
