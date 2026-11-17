@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiData } from '../lib/api'
+import { WaveBackground } from './WaveBackground'
 
 const FALLBACK = [
   { icon: 'ri-award-line', name: 'Partner Eins' },
@@ -69,8 +70,9 @@ export function Partner() {
   }
 
   return (
-    <section id="partner" className="hm-section scroll-mt-20" aria-labelledby="partner-title">
-      <div className="ro-container">
+    <section id="partner" className="hm-section scroll-mt-20 hm-partner-section" aria-labelledby="partner-title">
+      <WaveBackground className="hm-wave-bg" />
+      <div className="ro-container hm-partner-inner">
         <p className="ro-eyebrow text-primary-500 text-center mb-2">Unser Dank an die Unterstützer</p>
         <h2 id="partner-title" className="hm-h2 text-center">
           Unsere <span className="hm-script">Partner</span>
