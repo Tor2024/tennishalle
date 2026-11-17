@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { RichText } from '../lib/richText'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   api,
@@ -1135,7 +1136,7 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
 }
 
 // ---------- content tab (news / promo / events) ----------
-interface AdminPost { id: string; title: string; slug: string; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null }
+interface AdminPost { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null }
 interface AdminEvent { id: string; kind: string; title: string; participants: string | null; starts_at: string; ends_at: string | null; description: string | null; is_published: boolean }
 const EVENT_KINDS = [
   { id: 'match', label: 'Spiel' },
@@ -1178,7 +1179,7 @@ function ContentTab() {
         </div>
         {p.image_path && <img src={p.image_path} alt="" className="w-14 h-14 rounded-lg object-cover ro-frame shrink-0" />}
       </div>
-      {p.body && <p className="text-[13px] text-foreground-600 mt-2 line-clamp-2">{p.body}</p>}
+      {(p.lead || p.body) && <p className="text-[13px] text-foreground-600 mt-2 line-clamp-2">{p.lead ?? p.body}</p>}
       <p className="text-[11px] text-foreground-500 mt-1">
         {p.published ? 'Veröffentlicht' : 'Entwurf'}
         {p.type === 'promo' && p.promo_expires_at ? ` · bis ${new Date(p.promo_expires_at).toLocaleDateString('de-DE')}` : ''}
@@ -1259,6 +1260,7 @@ function ContentTab() {
 function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose: () => void; onSaved: (msg: string) => void }) {
   const [form, setForm] = useState({
     title: post?.title ?? '',
+    lead: post?.lead ?? '',
     body: post?.body ?? '',
     type: (post?.type ?? 'news') as 'news' | 'promo',
     image_path: post?.image_path ?? '',
@@ -1300,8 +1302,20 @@ function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose
         </div>
         <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Titel *</span>
           <input value={form.title} onChange={(e) => set('title', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Winterhallen-Plan ist da" /></label>
-        <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Text</span>
-          <textarea value={form.body} onChange={(e) => set('body', e.target.value)} rows={4} className={`${ADMIN_FIELD_CLS} resize-y`} placeholder="Nachrichtentext…" /></label>
+        <label className="block mt-4">
+          <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Kurzfassung (Lead) <InfoHint text="Erscheint in der Übersicht als Einzeiler unter dem Titel. 1-2 Sätze, die neugierig machen — der volle Text steht unten." /></span>
+          <input value={form.lead} onChange={(e) => set('lead', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Kurze Zusammenfassung in 1-2 Sätzen (optional)" />
+        </label>
+        <label className="block mt-4">
+          <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Text <InfoHint text="Formatierung: Leerzeile = neuer Absatz, **Text** = fett, Zeilen die mit - beginnen = Aufzählung. Rechts siehst du eine Live-Vorschau." /></span>
+          <textarea value={form.body} onChange={(e) => set('body', e.target.value)} rows={6} className={`${ADMIN_FIELD_CLS} resize-y`} placeholder={`Erster Absatz…\n\n**Fett gesetzter Hinweis**\n\n- Punkt eins\n- Punkt zwei`} /></label>
+        {(form.body || form.lead) && (
+          <div className="mt-4 rounded-lg border border-foreground-950/15 p-4">
+            <span className="ro-eyebrow text-foreground-600">Vorschau</span>
+            {form.lead && <p className="text-[14px] text-primary-400 mt-2">{form.lead}</p>}
+            <RichText body={form.body} className="mt-2 text-[13px] text-foreground-700 [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5" />
+          </div>
+        )}
         <div className="mt-4 flex items-center gap-3">
           <label className={`inline-flex h-9 items-center gap-2 rounded-full border border-foreground-950/20 px-4 text-[12px] font-medium cursor-pointer hover:border-primary-500/60 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
             {uploading ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-upload-2-line" />}

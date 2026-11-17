@@ -2,19 +2,20 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiData } from '../lib/api'
 import { Reveal } from './Reveal'
+import { RichText } from '../lib/richText'
 
-interface NewsRow { id: string; title: string; slug: string; body: string | null; image_path: string | null; published_at: string | null; author_name?: string | null }
-interface PromoRow { id: string; title: string; body: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null }
+interface NewsRow { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published_at: string | null; author_name?: string | null }
+interface PromoRow { id: string; title: string; lead: string | null; body: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null }
 interface EventRow { id: string; kind: string; title: string; participants: string | null; starts_at: string; description: string | null }
 
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
 
 // static fallback (original content from the prod bundle) — shown if DB is empty or unreachable
 const FALLBACK_NEWS: NewsRow[] = [
-  { id: 'fb-1', title: 'Winterhallen-Plan ist da', slug: 'winterhallen-plan', body: 'Ab sofort gelten die Winteröffnungszeiten in der Halle. Alle Zeiten findest du auf der Übersicht der Plätze.', image_path: null, published_at: null },
-  { id: 'fb-2', title: 'Neue Kursgruppe Kinder', slug: 'kursgruppe-kinder', body: 'Ein neuer Kurs für Kinder von 6–9 Jahren startet im Dezember. Anmeldung jetzt möglich.', image_path: null, published_at: null },
+  { id: 'fb-1', title: 'Winterhallen-Plan ist da', slug: 'winterhallen-plan', lead: null, body: 'Ab sofort gelten die Winteröffnungszeiten in der Halle. Alle Zeiten findest du auf der Übersicht der Plätze.', image_path: null, published_at: null },
+  { id: 'fb-2', title: 'Neue Kursgruppe Kinder', slug: 'kursgruppe-kinder', lead: null, body: 'Ein neuer Kurs für Kinder von 6–9 Jahren startet im Dezember. Anmeldung jetzt möglich.', image_path: null, published_at: null },
 ]
-const FALLBACK_PROMO: PromoRow = { id: 'fb-p', title: 'Montags bis freitags vor 12 Uhr: −20 % auf jede Hallenbuchung', body: 'Gilt für alle Hallenplätze bei Buchung über das System.', promo_expires_at: null }
+const FALLBACK_PROMO: PromoRow = { id: 'fb-p', title: 'Montags bis freitags vor 12 Uhr: −20 % auf jede Hallenbuchung', lead: null, body: 'Gilt für alle Hallenplätze bei Buchung über das System.', promo_expires_at: null }
 const FALLBACK_EVENTS: EventRow[] = [
   { id: 'fb-e1', kind: 'match', title: 'Game: Müller vs. Schmidt', participants: 'Freundschaftsspiel · Halle, Platz 1 · 18:00', starts_at: '2026-11-22T18:00:00Z', description: null },
   { id: 'fb-e2', kind: 'tournament', title: 'Vereinsmeisterschaft — Vorrunde', participants: 'Turnier · Halle, Platz 1 & 2 · ab 10:00', starts_at: '2026-11-29T10:00:00Z', description: null },
@@ -79,7 +80,8 @@ export function Aktuelles() {
                 <article key={n.id} className="ro-card hm-news-card">
                   <p className="ro-eyebrow text-primary-500">Verein</p>
                   <h3 className="ro-card-title ro-grad-lime mt-2">{n.title}</h3>
-                  {n.body && <p className="hm-news-text">{n.body}</p>}
+                  {n.lead && <p className="hm-news-text !text-primary-400 font-medium">{n.lead}</p>}
+                  {n.body && <RichText body={n.body} className="hm-news-text [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5 [&_strong]:text-foreground-950" />}
                   {meta && (
                     <p className="mt-3 text-xs text-foreground-600 flex items-center gap-1.5">
                       <i className="ri-time-line text-[13px]" />
@@ -97,7 +99,8 @@ export function Aktuelles() {
               <div className="hm-promo-card">
                 <p className="hm-promo-pill">Angebot der Woche</p>
                 <p className="hm-promo-title">{promo.title}</p>
-                {promo.body && <p className="hm-promo-sub">{promo.body}</p>}
+                {promo.lead && <p className="hm-promo-sub !text-primary-400 font-medium">{promo.lead}</p>}
+                {promo.body && <RichText body={promo.body} className="hm-promo-sub [&_p+p]:mt-2 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-0.5" />}
                 {(() => {
                   const meta = [fmtDate(promo.published_at), promo.author_name].filter(Boolean).join(' · ')
                   return meta ? (

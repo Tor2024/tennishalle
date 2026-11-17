@@ -502,6 +502,7 @@ async function savePost(body: Record<string, unknown>, user: SessionUser) {
   const slugBase = String(body.slug ?? '').trim() || title
   const slug = slugBase.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || `post-${Date.now()}`
   const text = String(body.body ?? '').trim() || null
+  const lead = String(body.lead ?? '').trim() || null
   const imagePath = String(body.image_path ?? '').trim() || null
   const published = body.published !== false
   const promoExpires = typeof body.promo_expires_at === 'string' && body.promo_expires_at ? body.promo_expires_at : null
@@ -509,17 +510,17 @@ async function savePost(body: Record<string, unknown>, user: SessionUser) {
 
   if (id) {
     const r = await db().query(
-      `update news_posts set title=$1, slug=$2, body=$3, image_path=$4, published=$5, type=$6,
-        promo_expires_at=$7, updated_at=now() where id=$8 returning id`,
-      [title, slug, text, imagePath, published, type, promoExpires, id],
+      `update news_posts set title=$1, slug=$2, body=$3, lead=$4, image_path=$5, published=$6, type=$7,
+        promo_expires_at=$8, updated_at=now() where id=$9 returning id`,
+      [title, slug, text, lead, imagePath, published, type, promoExpires, id],
     )
     if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Beitrag nicht gefunden.' }, 404)
     return json({ ok: true, id: r.rows[0].id, message: 'Beitrag gespeichert.' })
   }
   const r = await db().query(
-    `insert into news_posts (id, title, slug, body, image_path, published, type, promo_expires_at, published_at, created_by)
-     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, case when $5 then now() else null end, $8) returning id`,
-    [title, slug, text, imagePath, published, type, promoExpires, user.id],
+    `insert into news_posts (id, title, slug, body, lead, image_path, published, type, promo_expires_at, published_at, created_by)
+     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, case when $6 then now() else null end, $9) returning id`,
+    [title, slug, text, lead, imagePath, published, type, promoExpires, user.id],
   )
   void user
   return json({ ok: true, id: r.rows[0].id, message: 'Beitrag angelegt.' })
