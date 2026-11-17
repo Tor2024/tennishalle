@@ -1628,7 +1628,7 @@ function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | n
           <label className="block"><span className="ro-eyebrow text-foreground-600">Platz-Nr.</span>
             <input type="number" value={form.court_number} onChange={(e) => set('court_number', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
           <div className="self-end text-[12px] text-foreground-500 leading-snug pb-1">
-            Preise definierst du nach dem Anlegen über <span className="font-semibold text-foreground-700">Preiszonen</span>.
+            {court ? 'Preise über Preiszonen steuern.' : <>Preiszonen und Öffnungszeiten werden beim Anlegen automatisch übernommen — danach anpassbar.</>}
           </div>
         </div>
         <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Bild-URL</span>

@@ -276,12 +276,44 @@ async function saveCourt(body: Record<string, unknown>) {
     if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Platz nicht gefunden.' }, 404)
     return json({ ok: true, id: r.rows[0].id, message: 'Platz gespeichert.' })
   }
-  const r = await db().query(
-    `insert into courts (id, venue_id, name, surface, environment, court_number, hourly_price, image_url, is_active, sort_order)
-     values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
-    [venueId, name, surface, environment, courtNumber, hourlyPrice, imageUrl, isActive, sortOrder],
-  )
-  return json({ ok: true, id: r.rows[0].id, message: 'Platz angelegt.' })
+  const p = db()
+  await p.query('begin')
+  try {
+    const r = await p.query(
+      `insert into courts (id, venue_id, name, surface, environment, court_number, hourly_price, image_url, is_active, sort_order)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
+      [venueId, name, surface, environment, courtNumber, hourlyPrice, imageUrl, isActive, sortOrder],
+    )
+    const newId = r.rows[0].id as string
+    // Neue Plätze starten mit der Einrichtung des vollständigsten Platzes (Preiszonen + Öffnungszeiten) — Admin passt danach an.
+    const ref = await p.query(
+      `select c.id,
+          (select count(*) from price_zones pz where pz.court_id = c.id) as zone_count
+        from courts c where c.id <> $1
+        order by zone_count desc, c.sort_order limit 1`,
+      [newId],
+    )
+    const refId = typeof ref.rows[0]?.id === 'string' ? (ref.rows[0].id as string) : null
+    let copied = false
+    if (refId) {
+      await p.query(
+        `insert into price_zones (court_id, label, weekdays, start_time, end_time, price_cents, sort_order)
+         select $1, label, weekdays, start_time, end_time, price_cents, sort_order from price_zones where court_id = $2`,
+        [newId, refId],
+      )
+      await p.query(
+        `insert into operating_hours (court_id, weekday, opens, closes)
+         select $1, weekday, opens, closes from operating_hours where court_id = $2`,
+        [newId, refId],
+      )
+      copied = true
+    }
+    await p.query('commit')
+    return json({ ok: true, id: newId, message: copied ? 'Platz angelegt. Preiszonen und Öffnungszeiten wurden übernommen — jetzt anpassbar.' : 'Platz angelegt.' })
+  } catch (err) {
+    await p.query('rollback')
+    throw err
+  }
 }
 
 async function deleteCourt(body: Record<string, unknown>) {
