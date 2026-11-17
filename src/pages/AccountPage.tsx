@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Nav } from '../components/Nav'
 import { Footer } from '../components/Footer'
-import { api, apiAuth, changePassword, formatPrice, getBootstrap, updateProfile, type Court, type ClubSettings, type Venue } from '../lib/api'
+import { api, apiAuth, changePassword, formatPrice, getBootstrap, updateProfile, myTournaments, cancelTournament, type MyTournamentEntry, type Court, type ClubSettings, type Venue } from '../lib/api'
 
 // structure verbatim from prod bundle sf() component
 interface Reservation {
@@ -80,6 +80,88 @@ function downloadIcs(e: Reservation, courtName: string, venueName: string) {
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+const TOUR_STATUS_LABEL: Record<string, string> = { announcement: 'Angekündigt', registration: 'Anmeldung läuft', running: 'Läuft gerade', finished: 'Beendet' }
+
+function TournamentsSection(_: { user: { id: string } }) {
+  const [entries, setEntries] = useState<MyTournamentEntry[] | null>(null)
+  const [msg, setMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(() => {
+    myTournaments().then((r) => setEntries(r.ok && r.entries ? r.entries : [])).catch(() => setEntries([]))
+  }, [])
+  useEffect(load, [load])
+
+  const doCancel = async (e: MyTournamentEntry) => {
+    setBusy(e.id)
+    setMsg(null)
+    try {
+      const r = await cancelTournament(e.id)
+      setMsg({ id: e.id, text: r.message ?? (r.ok ? 'Abmeldung erfolgreich.' : 'Fehler'), ok: r.ok })
+      if (r.ok) load()
+    } catch {
+      setMsg({ id: e.id, text: 'Netzwerkfehler.', ok: false })
+    }
+    setBusy(null)
+  }
+
+  const canCancel = (e: MyTournamentEntry) =>
+    (e.status === 'announcement' || e.status === 'registration') &&
+    (!e.registration_deadline || new Date(e.registration_deadline) > new Date())
+
+  if (entries !== null && entries.length === 0) return null
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="font-heading text-3xl md:text-[40px] heading-tight text-foreground-700">Meine Turniere</h2>
+        <span className="eyebrow text-foreground-500">{entries?.length ?? 0}</span>
+      </div>
+      {entries === null ? (
+        <p className="text-sm text-foreground-600">Turniere werden geladen…</p>
+      ) : (
+        <div className="space-y-3">
+          {msg && <p className={`text-sm ${msg.ok ? 'text-primary-400' : 'text-secondary-300'}`}>{msg.text}</p>}
+          {entries.map((e) => (
+            <div key={e.entry_id} className={`ro-card p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${e.status === 'running' || e.status === 'finished' ? 'opacity-70' : ''}`}>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[15px] font-semibold text-foreground-950">{e.title}</p>
+                  <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${e.status === 'registration' || e.status === 'running' ? 'border-primary-500/60 text-primary-500' : 'border-foreground-950/20 text-foreground-600'}`}>
+                    {TOUR_STATUS_LABEL[e.status]}
+                  </span>
+                </div>
+                <p className="text-[13px] text-foreground-600 mt-1">
+                  {new Date(e.starts_at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin' })} Uhr
+                  {e.format === 'double' ? ' · Doppel' : ' · Einzel'}
+                  {e.partner_name ? ` · Partner: ${e.partner_name}` : ''}
+                  {e.fee_cents > 0 ? ` · ${(e.fee_cents / 100).toFixed(2).replace('.', ',')} €` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {e.fee_cents > 0 && (
+                  <span className={`rounded-full border px-3 py-1 text-[12px] font-semibold ${e.paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-500' : 'border-foreground-950/20 text-foreground-600'}`}>
+                    {e.paid ? 'Bezahlt' : 'Zahlung vor Ort offen'}
+                  </span>
+                )}
+                {canCancel(e) && (
+                  <button
+                    onClick={() => doCancel(e)}
+                    disabled={busy === e.entry_id}
+                    className="h-9 px-4 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60 disabled:opacity-50 cursor-pointer"
+                  >
+                    {busy === e.entry_id ? 'Bitte warten…' : 'Abmelden'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
 }
 
 function BookingsList({
@@ -412,6 +494,7 @@ export function AccountPage() {
                       cancelling={cancelling} onCancel={cancel} priceNotices={priceNotices}
                     />
                   </section>
+                  <TournamentsSection user={user} />
                 </div>
               )}
              </>

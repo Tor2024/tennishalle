@@ -1,6 +1,6 @@
 // data-api — публичное чтение: корты, площадки, настройки, блокировки, новости, партнёры, события
 // Заменяет прямые SELECT-ы из Supabase (getCourts/getClubSettings/getCourtBlocks) на своём бэкенде.
-import { db, json, getUser } from "./_lib.js";
+import { db, json, getUser, sendTournamentRegistrationEmail, sendTournamentCancelEmail } from "./_lib.js";
 
 export const config = { runtime: "nodejs" };
 
@@ -23,6 +23,8 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "events") return await news();
     if (body.action === "tournaments") return await tournaments();
     if (body.action === "tournament_register") return await tournamentRegister(body, req);
+    if (body.action === "my_tournaments") return await myTournaments(req);
+    if (body.action === "tournament_cancel") return await tournamentCancel(body, req);
     if (body.action === "legal") return await legal();
     if (body.action === "price_overview") return await priceOverview();
     if (body.action === "court_blocks") return await courtBlocks(body);
@@ -89,9 +91,10 @@ async function tournamentRegister(body: Record<string, unknown>, req: Request): 
   if (!user) return json({ ok: false, code: "unauthorized", message: "Bitte melde dich an, um dich zu melden." }, 401)
   const tournamentId = typeof body.tournament_id === "string" ? body.tournament_id : ""
   if (!tournamentId) return json({ ok: false, code: "bad_request", message: "Fehlende Turnier-ID." }, 400)
-  const t = await db().query(`select id, status, max_entries, registration_deadline from tournaments where id = $1 and is_published = true`, [tournamentId])
+  const t = await db().query(`select id, status, max_entries, registration_deadline, title, starts_at, fee_cents from tournaments where id = $1 and is_published = true`, [tournamentId])
   if (!t.rows.length) return json({ ok: false, code: "not_found", message: "Turnier nicht gefunden." }, 404)
-  const tour = t.rows[0] as Record<string, unknown>
+  const row = t.rows[0] as Record<string, unknown>
+  const tour = row
   if (tour.status === "finished" || tour.status === "running")
     return json({ ok: false, code: "closed", message: "Die Anmeldung für dieses Turnier ist nicht mehr möglich." }, 400)
   if (tour.registration_deadline && new Date(String(tour.registration_deadline)) < new Date())
@@ -114,7 +117,49 @@ async function tournamentRegister(body: Record<string, unknown>, req: Request): 
     throw e
   }
   const total = await db().query(`select count(*) as c from tournament_entries where tournament_id = $1`, [tournamentId])
+  try {
+    await sendTournamentRegistrationEmail({
+      to: user.email, name: user.full_name ?? "", title: String(row.title),
+      startsAt: String(row.starts_at), feeCents: Number(row.fee_cents ?? 0),
+      partnerName: partnerName, deadline: row.registration_deadline ? String(row.registration_deadline) : null,
+    })
+  } catch { /* письмо не критично */ }
   return json({ ok: true, message: "Anmeldung erfolgreich.", entry_count: Number(total.rows[0].c) })
+}
+
+/** Мои турнирные регистрации (для кабинета). */
+async function myTournaments(req: Request): Promise<Response> {
+  const user = await getUser(req)
+  if (!user) return json({ ok: false, code: "unauthorized", message: "Bitte melde dich an." }, 401)
+  const r = await db().query(
+    `select e.id as entry_id, e.partner_name, e.paid, t.id, t.title, t.format, t.fee_cents, t.starts_at, t.registration_deadline, t.status
+       from tournament_entries e join tournaments t on t.id = e.tournament_id
+      where e.user_id = $1 order by t.starts_at`,
+    [user.id],
+  )
+  return json({ ok: true, entries: r.rows })
+}
+
+/** Отмена собственной регистрации: до дедлайна и пока турнир не идёт/не закончился. */
+async function tournamentCancel(body: Record<string, unknown>, req: Request): Promise<Response> {
+  const user = await getUser(req)
+  if (!user) return json({ ok: false, code: "unauthorized", message: "Bitte melde dich an." }, 401)
+  const tournamentId = typeof body.tournament_id === "string" ? body.tournament_id : ""
+  if (!tournamentId) return json({ ok: false, code: "bad_request", message: "Fehlende Turnier-ID." }, 400)
+  const t = await db().query(`select id, status, registration_deadline, title, starts_at from tournaments where id = $1`, [tournamentId])
+  if (!t.rows.length) return json({ ok: false, code: "not_found", message: "Turnier nicht gefunden." }, 404)
+  const row = t.rows[0] as Record<string, unknown>
+  if (row.status === "running" || row.status === "finished")
+    return json({ ok: false, code: "closed", message: "Eine Abmeldung ist nicht mehr möglich." }, 400)
+  if (row.registration_deadline && new Date(String(row.registration_deadline)) < new Date())
+    return json({ ok: false, code: "deadline_passed", message: "Die Abmeldefrist ist abgelaufen." }, 400)
+  const r = await db().query(`delete from tournament_entries where tournament_id = $1 and user_id = $2`, [tournamentId, user.id])
+  if (!r.rowCount) return json({ ok: false, code: "not_found", message: "Du bist für dieses Turnier nicht gemeldet." }, 404)
+  const total = await db().query(`select count(*) as c from tournament_entries where tournament_id = $1`, [tournamentId])
+  try {
+    await sendTournamentCancelEmail({ to: user.email, name: user.full_name ?? "", title: String(row.title), startsAt: String(row.starts_at) })
+  } catch { /* письмо не критично */ }
+  return json({ ok: true, message: "Abmeldung erfolgreich.", entry_count: Number(total.rows[0].c) })
 }
 
 /** Обзор цен по кортам: hourly_price + min/max из price_zones (для карточек и планировщика). */async function priceOverview(): Promise<Response> {

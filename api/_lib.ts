@@ -223,6 +223,39 @@ export async function sendBookingConfirmationEmail(opts: {
   return sendBrevoEmail(opts.to, `Deine Buchung ist bestätigt — TENNISHALLE`, html);
 }
 
+/** Подтверждение регистрации на турнир участнику. */
+export async function sendTournamentRegistrationEmail(opts: {
+  to: string; name: string; title: string; startsAt: string; feeCents: number;
+  partnerName: string | null; deadline: string | null;
+}): Promise<boolean> {
+  const dt = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: TZ }).format(new Date(opts.startsAt));
+  const tm = (iso: string) => new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: TZ }).format(new Date(iso));
+  const fee = opts.feeCents > 0 ? `${(opts.feeCents / 100).toFixed(2).replace(".", ",")} € — Zahlung vor Ort im Verein` : "keine Startgebühr";
+  const greeting = opts.name ? `Hallo ${opts.name},` : "Hallo,";
+  const html = MAIL_WRAP(
+    "Turnier-Anmeldung bestätigt.",
+    `<p style="color:#4a524a;font-size:15px;line-height:1.7;margin:14px 0 22px">${greeting} wir haben deine Meldung eingetragen:</p>
+     <table style="margin:0 0 8px;border-top:1px solid #e2e6de;width:100%">${MAIL_ROW("Turnier", opts.title)}${MAIL_ROW("Termin", `${dt}, ${tm(opts.startsAt)} Uhr`)}${MAIL_ROW("Startgebühr", fee)}${opts.partnerName ? MAIL_ROW("Partner", opts.partnerName) : ""}${opts.deadline ? MAIL_ROW("Abmeldung möglich bis", new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", timeZone: TZ }).format(new Date(opts.deadline))) : ""}</table>
+     <p style="color:#4a524a;font-size:14px;line-height:1.7;margin:22px 0 0">Wir freuen uns auf dich! Abmelden kannst du dich bis zur Anmeldefrist direkt unter „Mein Konto → Meine Turniere“.</p>`,
+    "Meine Turniere",
+  );
+  return sendBrevoEmail(opts.to, `Turnier-Anmeldung bestätigt — TENNISHALLE`, html);
+}
+
+/** Подтверждение отмены регистрации участнику. */
+export async function sendTournamentCancelEmail(opts: {
+  to: string; name: string; title: string; startsAt: string;
+}): Promise<boolean> {
+  const dt = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: TZ }).format(new Date(opts.startsAt));
+  const greeting = opts.name ? `Hallo ${opts.name},` : "Hallo,";
+  const html = MAIL_WRAP(
+    "Abmeldung bestätigt.",
+    `<p style="color:#4a524a;font-size:15px;line-height:1.7;margin:14px 0 22px">${greeting} deine Abmeldung vom <b>${opts.title}</b> (${dt}) haben wir zurückgenommen. Falls du doch teilnehmen möchtest, melde dich einfach wieder an — sofern Plätze frei sind.</p>`,
+    "Turniere ansehen",
+  );
+  return sendBrevoEmail(opts.to, `Turnier-Abmeldung bestätigt — TENNISHALLE`, html);
+}
+
 /** Erinnerung ~за день до игры (cron раз в день на Hobby: окно 20-44ч). */
 export async function sendBookingReminderEmail(opts: {
   to: string; name: string; reference: string; courtName: string; venueName: string; startAt: string; endAt: string;

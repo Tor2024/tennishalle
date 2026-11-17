@@ -632,12 +632,24 @@ async function tournamentEntries(body: Record<string, unknown>) {
   const id = typeof (body.tournament_id ?? body.id) === 'string' ? String(body.tournament_id ?? body.id) : ''
   if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
   const r = await db().query(
-    `select e.id, e.partner_name, e.note, e.created_at, u.full_name, u.email, u.phone
+    `select e.id, e.partner_name, e.note, e.created_at, e.paid, e.paid_at, u.full_name, u.email, u.phone
        from tournament_entries e join app_users u on u.id = e.user_id
       where e.tournament_id = $1 order by e.created_at`,
     [id],
   )
   return json({ ok: true, entries: r.rows })
+}
+
+async function markEntryPaid(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  const paid = body.paid !== false
+  const r = await db().query(
+    `update tournament_entries set paid = $1, paid_at = case when $1 then now() else null end where id = $2`,
+    [paid, id],
+  )
+  if (!r.rowCount) return json({ ok: false, code: 'not_found', message: 'Meldung nicht gefunden.' }, 404)
+  return json({ ok: true, message: paid ? 'Als bezahlt markiert.' : 'Bezahlt-Status entfernt.' })
 }
 
 async function removeEntry(body: Record<string, unknown>) {
@@ -772,6 +784,7 @@ export async function POST(req: Request): Promise<Response> {
       case 'delete_tournament': return await deleteTournament(body)
       case 'tournament_entries': return await tournamentEntries(body)
       case 'remove_entry': return await removeEntry(body)
+      case 'mark_entry_paid': return await markEntryPaid(body)
       case 'legal': return await legalList()
       case 'save_legal': return await saveLegal(body)
       case 'hours': return await hoursList(body)

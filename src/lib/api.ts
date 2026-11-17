@@ -132,6 +132,21 @@ export async function registerTournament(tournamentId: string, body: { partner_n
   return apiData('tournament_register', { tournament_id: tournamentId, ...body })
 }
 
+export interface MyTournamentEntry {
+  entry_id: string; partner_name: string | null; paid: boolean;
+  id: string; title: string; format: 'single' | 'double'; fee_cents: number;
+  starts_at: string; registration_deadline: string | null;
+  status: 'announcement' | 'registration' | 'running' | 'finished';
+}
+
+export function myTournaments(): Promise<{ ok: boolean; entries?: MyTournamentEntry[]; message?: string }> {
+  return apiData('my_tournaments', {})
+}
+
+export function cancelTournament(tournamentId: string): Promise<{ ok: boolean; message?: string; entry_count?: number }> {
+  return apiData('tournament_cancel', { tournament_id: tournamentId })
+}
+
 export async function updateProfile(body: { full_name: string; phone: string }): Promise<{ ok: boolean; user?: AppUser; message?: string }> {
   return apiAuth('update_profile', body)
 }

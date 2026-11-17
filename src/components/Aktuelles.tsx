@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiData, me, registerTournament } from '../lib/api'
+import { apiData, me, registerTournament, myTournaments } from '../lib/api'
 import { Reveal } from './Reveal'
 import { RichText } from '../lib/richText'
 
@@ -68,10 +68,16 @@ export function Aktuelles() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof me>>>(null)
   const [regMsg, setRegMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null)
   const [regBusy, setRegBusy] = useState<string | null>(null)
+  const [myTournamentIds, setMyTournamentIds] = useState<string[]>([])
   const [openPost, setOpenPost] = useState<OpenPost | null>(null)
 
   useEffect(() => {
-    me().then(setUser)
+    me().then((u) => {
+      setUser(u)
+      if (u) {
+        myTournaments().then((r) => { if (r.ok && r.entries) setMyTournamentIds(r.entries.map((e) => e.id)) }).catch(() => {})
+      }
+    })
     apiData<{ ok: boolean; news: NewsRow[]; promo: PromoRow[]; events: EventRow[] }>('news')
       .then((r) => {
         if (!r?.ok) throw new Error('bad response')
@@ -110,8 +116,11 @@ export function Aktuelles() {
     try {
       const r = await registerTournament(t.id)
       setRegMsg({ id: t.id, text: r.message ?? (r.ok ? 'Anmeldung erfolgreich.' : 'Fehler'), ok: r.ok })
-      if (r.ok && typeof r.entry_count === 'number') {
-        setTournaments((ts) => ts.map((x) => (x.id === t.id ? { ...x, entry_count: r.entry_count! } : x)))
+      if (r.ok) {
+        setMyTournamentIds((ids) => (ids.includes(t.id) ? ids : [...ids, t.id]))
+        if (typeof r.entry_count === 'number') {
+          setTournaments((ts) => ts.map((x) => (x.id === t.id ? { ...x, entry_count: r.entry_count! } : x)))
+        }
       }
     } catch {
       setRegMsg({ id: t.id, text: 'Netzwerkfehler.', ok: false })
@@ -291,13 +300,17 @@ export function Aktuelles() {
                       <div className="flex flex-wrap items-center gap-5 mt-auto pt-4">
                         {reg && (
                           user ? (
-                            <button
-                              onClick={() => doRegister(t)}
-                              disabled={regBusy === t.id || full}
-                              className={`hm-cta ${full ? 'opacity-50 pointer-events-none' : ''}`}
-                            >
-                              {full ? 'Ausgebucht' : 'Melden'} <i className="ri-arrow-right-up-line" />
-                            </button>
+                            myTournamentIds.includes(t.id) ? (
+                              <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-primary-400"><i className="ri-checkbox-circle-fill" />Angemeldet</span>
+                            ) : (
+                              <button
+                                onClick={() => doRegister(t)}
+                                disabled={regBusy === t.id || full}
+                                className={`hm-cta ${full ? 'opacity-50 pointer-events-none' : ''}`}
+                              >
+                                {full ? 'Ausgebucht' : 'Melden'} <i className="ri-arrow-right-up-line" />
+                              </button>
+                            )
                           ) : (
                             <Link to="/sign-in" className="hm-textlink">Zum Melden anmelden <i className="ri-arrow-right-line" /></Link>
                           )
