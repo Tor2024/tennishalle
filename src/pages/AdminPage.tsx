@@ -1101,6 +1101,10 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
           </label>
           {form.logo_path && <img src={form.logo_path} alt="" className="w-12 h-12 rounded-lg object-cover ro-frame" />}
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-foreground-500">
+          <i className="ri-information-line mr-1 text-primary-500" />
+          PNG, JPEG, WebP, SVG oder GIF · quadratisch empfohlen (z.&nbsp;B. 512×512 px) · bis 150&nbsp;KB bleibt das Original unverändert, größere Bilder werden automatisch auf max. 520&nbsp;px Breite skaliert (WebP) · SVG/GIF werden immer unverändert übernommen — halte sie klein.
+        </p>
         <div className="mt-4 flex items-center justify-between gap-3">
           <label className="flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
             <input type="checkbox" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} className="accent-[var(--color-primary-500)]" />
