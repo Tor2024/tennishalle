@@ -592,8 +592,10 @@
   background: color-mix(in oklab, var(--color-foreground-950) 3%, transparent);
 }
 @media (min-width: 768px) { .hm-feat-card { grid-template-columns: 55% 1fr; } }
-.hm-feat-media { padding: 0; border: 0; background: none; cursor: pointer; display: block; min-height: 200px; }
-.hm-feat-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hm-feat-media { position: relative; padding: 0; border: 0; background: none; cursor: pointer; display: block; min-height: 220px; overflow: hidden; }
+@media (min-width: 768px) { .hm-feat-media { min-height: 320px; } }
+.hm-feat-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.hm-news-ph { position: absolute; inset: 0; }
 .hm-feat-body { display: flex; flex-direction: column; gap: 12px; padding: 26px; align-items: flex-start; }
 .hm-feat-title { font-size: clamp(22px, 2.6vw, 30px); line-height: 1.2; font-weight: 600; margin: 0; color: var(--color-foreground-950); }
 .hm-feat-lead { font-size: 15px; line-height: 1.6; color: var(--color-foreground-700); margin: 0; }
