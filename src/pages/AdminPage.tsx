@@ -1312,7 +1312,7 @@ function ContentTab() {
 }
 
 const PROMO_ICONS = [
-  { id: 'ri-ticket-percent-line', label: 'Rabatt / Angebot' },
+  { id: 'ri-discount-percent-line', label: 'Rabatt / Angebot' },
   { id: 'ri-time-line', label: 'Zeitlich begrenzt' },
   { id: 'ri-gift-line', label: 'Gutschein / Geschenk' },
   { id: 'ri-star-line', label: 'Highlight' },
