@@ -726,13 +726,32 @@ function DetailsStep({
 
 /* ---------- step 5: review (Ad) ---------- */
 
+/* непрерывные серии слотов: [06:00,06:30,20:00] → [[06:00,06:30],[20:00]] */
+function splitContiguous(times: string[]): string[][] {
+  const sorted = [...times].sort()
+  const groups: string[][] = []
+  for (const t of sorted) {
+    const last = groups[groups.length - 1]
+    if (last && hhmmToMin(t) === hhmmToMin(last[last.length - 1]) + 30) last.push(t)
+    else groups.push([t])
+  }
+  return groups
+}
+
+/* человекочитаемые диапазоны: одна серия → '06:00 – 07:00', несколько → '06:00 – 06:30 und 20:00 – 20:30' */
+function formatRanges(times: string[]): string {
+  const groups = splitContiguous(times)
+  return groups
+    .map((g) => `${g[0]} – ${minToHHMM(hhmmToMin(g[g.length - 1]) + 30)}`)
+    .join(' und ')
+}
+
 function ReviewStep({
   court,
   venue,
   settings,
   date,
-  duration,
-  time,
+  times,
   fee: feeProp,
   details,
   onBack,
@@ -743,12 +762,11 @@ function ReviewStep({
   venue: Venue | null
   settings: ClubSettings
   date: string
-  duration: number
-  time: string
+  times: string[]
   fee: number | null
   details: { name: string; email: string; phone: string; notes: string }
   onBack: () => void
-  onSuccess: (r: NonNullable<CreateResp['reservation']>) => void
+  onSuccess: (rs: NonNullable<CreateResp['reservation']>[], failedRanges: string[]) => void
   onConflict: (msg: string) => void
 }) {
   const [checked, setChecked] = useState(false)
@@ -757,15 +775,16 @@ function ReviewStep({
   const idempotency = useRef(crypto.randomUUID())
   const honeypot = useRef<HTMLInputElement>(null)
 
+  const duration = times.length * 30
+  const groups = splitContiguous(times)
   const fee = feeProp ?? Math.round((court.hourly_price ?? 0) * duration * 100 / 60) / 100
-  const end = minToHHMM(hhmmToMin(time) + duration)
 
   const rows: [string, string][] = [
     ['Anlage', venue?.name ?? '—'],
     ['Platz', `${court.name}${court.surface ? ` · ${court.surface}` : ''}`],
     ['Datum', dateShort(date)],
-    ['Zeit', `${time} – ${end} (${settings.timezone})`],
-    ['Dauer', `${duration} Minuten`],
+    ['Zeit', formatRanges(times)],
+    ['Dauer', groups.length > 1 ? `${duration} Minuten gesamt (${groups.length} Blöcke)` : `${duration} Minuten`],
     ['Name', details.name],
     ['E-Mail', details.email],
     ['Telefon', details.phone],
@@ -774,30 +793,43 @@ function ReviewStep({
   const submit = async () => {
     setBusy(true)
     setError(null)
-    const r = await api<CreateResp>('create', {
-      court_id: court.id,
-      date,
-      start_time: time,
-      duration,
-      name: details.name.trim(),
-      email: details.email.trim(),
-      phone: details.phone.trim(),
-      notes: details.notes.trim() || undefined,
-      idempotency_key: idempotency.current,
-      website_alt: honeypot.current?.value ?? '',
-    })
+    const results: NonNullable<CreateResp['reservation']>[] = []
+    const failed: string[] = []
+    for (let i = 0; i < groups.length; i++) {
+      const g = groups[i]
+      const r = await api<CreateResp>('create', {
+        court_id: court.id,
+        date,
+        start_time: g[0],
+        duration: g.length * 30,
+        name: details.name.trim(),
+        email: details.email.trim(),
+        phone: details.phone.trim(),
+        notes: details.notes.trim() || undefined,
+        idempotency_key: `${idempotency.current}-g${i}`,
+        website_alt: honeypot.current?.value ?? '',
+      })
+      if (r.ok && r.reservation) {
+        results.push(r.reservation)
+      } else {
+        const msg = r.message ?? 'Buchung fehlgeschlagen. Es wurde nichts reserviert.'
+        if (/conflict|too_soon|outside_hours/i.test(msg)) {
+          failed.push(`${g[0]} – ${minToHHMM(hhmmToMin(g[g.length - 1]) + 30)}`)
+        } else {
+          setError(msg)
+          setBusy(false)
+          idempotency.current = crypto.randomUUID()
+          return
+        }
+      }
+    }
     setBusy(false)
-    if (r.ok && r.reservation) {
-      onSuccess(r.reservation)
+    if (results.length > 0) {
+      onSuccess(results, failed)
       return
     }
-    const msg = r.message ?? 'Buchung fehlgeschlagen. Es wurde nichts reserviert.'
-    if (/conflict|too_soon|outside_hours/i.test(msg)) {
-      idempotency.current = crypto.randomUUID()
-      onConflict(msg === 'Buchung fehlgeschlagen. Es wurde nichts reserviert.' ? 'Diese Zeit ist nicht mehr verfügbar.' : msg)
-    } else {
-      setError(msg)
-    }
+    idempotency.current = crypto.randomUUID()
+    onConflict('Diese Zeit ist nicht mehr verfügbar.')
   }
 
   return (
@@ -887,7 +919,7 @@ function ReviewStep({
 
 /* ---------- success (jd) ---------- */
 
-function Success({ result, onAgain }: { result: NonNullable<CreateResp['reservation']>; onAgain: () => void }) {
+function Success({ result, extra, failed, onAgain }: { result: NonNullable<CreateResp['reservation']>; extra: NonNullable<CreateResp['reservation']>[]; failed: string[]; onAgain: () => void }) {
   return (
     <div className="animate-fade-up max-w-xl">
       <div className="flex items-center gap-3">
@@ -911,6 +943,18 @@ function Success({ result, onAgain }: { result: NonNullable<CreateResp['reservat
           <dd className="text-right text-foreground-950 capitalize">{result.status}</dd>
         </div>
       </dl>
+      {extra.length > 0 && (
+        <p className="mt-4 text-[14px] text-foreground-800">
+          Weitere Reservierungen:{' '}
+          <strong className="ro-grad-lime">{extra.map((e) => e.reference).join(', ')}</strong>
+        </p>
+      )}
+      {failed.length > 0 && (
+        <p className="mt-4 flex items-start gap-2 text-[14px] text-secondary-300">
+          <i className="ri-error-warning-line mt-0.5 shrink-0" />
+          <span>Nicht verfügbar war: {failed.join(', ')} — dieser Zeitraum wurde nicht reserviert.</span>
+        </p>
+      )}
       <p className="mt-5 ro-body text-foreground-700">
         Bewahre die Referenz auf. Du brauchst sie bei Rückfragen zu dieser Buchung.
       </p>
@@ -948,6 +992,8 @@ export default function BookPage() {
   const [details, setDetails] = useState({ name: '', email: '', phone: '', notes: '' })
   const [slotPrices, setSlotPrices] = useState<Map<string, number | null>>(new Map())
   const [result, setResult] = useState<NonNullable<CreateResp['reservation']> | null>(null)
+  const [extraResults, setExtraResults] = useState<NonNullable<CreateResp['reservation']>[]>([])
+  const [failedRanges, setFailedRanges] = useState<string[]>([])
   const [user, setUser] = useState<AppUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -1019,7 +1065,7 @@ export default function BookPage() {
     ['Anlage', venue?.name ?? null],
     ['Platz', court ? `${court.name}${court.surface ? ` · ${court.surface}` : ''}` : null],
     ['Datum', step >= 1 && date ? dateShort(date) : null],
-    ['Zeit', selected.times[0] ? `${selected.times.length}x30 min – ${selected.times[0]} – ${minToHHMM(hhmmToMin(selected.times[0]) + selected.times.length * 30)}` : step >= 1 ? '30 min' : null],
+    ['Zeit', selected.times.length > 0 ? `${selected.times.length}x30 min – ${formatRanges(selected.times)}` : step >= 1 ? '30 min' : null],
   ]
 
   const jump = (i: number) => {
@@ -1032,6 +1078,8 @@ export default function BookPage() {
 
   const reset = () => {
     setResult(null)
+    setExtraResults([])
+    setFailedRanges([])
     setStep(0)
     setVenueId(null)
     setSelected({ courtId: null, times: [] })
@@ -1109,7 +1157,7 @@ export default function BookPage() {
 
           <div>
             {result ? (
-              <Success result={result} onAgain={reset} />
+              <Success result={result} extra={extraResults} failed={failedRanges} onAgain={reset} />
             ) : loading ? (
               <div className="mt-12 space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -1187,12 +1235,15 @@ export default function BookPage() {
                       venue={venue}
                       settings={settings}
                       date={date}
-                      duration={selected.times.length * 30}
-                      time={selected.times[0] ?? ''}
+                      times={selected.times}
                       fee={fee}
                       details={details}
                       onBack={() => setStep(2)}
-                      onSuccess={(r) => setResult(r)}
+                      onSuccess={(rs, failed) => {
+                        setResult(rs[0] ?? null)
+                        setExtraResults(rs.slice(1))
+                        setFailedRanges(failed)
+                      }}
                       onConflict={() => {
                         setSelected({ courtId: null, times: [] })
                         setStep(1)
