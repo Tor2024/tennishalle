@@ -679,7 +679,7 @@
   width: max-content;
   animation: hm-scroll 36s linear infinite;
 }
-.hm-marquee.is-paused .hm-marquee-track { animation-play-state: paused; }
+.hm-marquee .hm-marquee-track.is-paused { animation-play-state: paused; }
 @keyframes hm-scroll { to { transform: translateX(-50%); } }
 .hm-partner {
   flex: 0 0 auto;
