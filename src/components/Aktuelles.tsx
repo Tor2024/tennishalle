@@ -207,18 +207,17 @@ export function Aktuelles() {
                   const ctaLabel = p.cta_label || 'Jetzt buchen'
                   const ctaTo = p.cta_link || '/book'
                   const ctaInner = <>{ctaLabel} <i className="ri-arrow-right-up-line" /></>
-                  const ctaCls = 'hm-btn hm-btn-lime mt-auto self-start'
                   return (
-                    <div key={p.id} className="hm-promo-card flex flex-col">
+                    <div key={p.id} className="hm-promo-card">
                       <p className="hm-promo-pill">Angebot</p>
-                      {p.icon && <i className={`${p.icon} text-[26px] mt-3`} />}
-                      <p className="hm-promo-title !text-[19px]">{p.title}</p>
+                      {p.icon && <div className="hm-promo-icon"><i className={p.icon} /></div>}
+                      <p className="hm-promo-title">{p.title}</p>
                       {p.lead && <p className="hm-promo-sub line-clamp-2">{p.lead}</p>}
-                      <div className="flex flex-wrap items-center gap-4 mt-4">
+                      <div className="flex flex-wrap items-center gap-4 mt-auto pt-4">
                         {ctaTo.startsWith('/') || ctaTo.startsWith('#') ? (
-                          <Link to={ctaTo} className={ctaCls}>{ctaInner}</Link>
+                          <Link to={ctaTo} className="hm-cta">{ctaInner}</Link>
                         ) : (
-                          <a href={ctaTo} target="_blank" rel="noreferrer" className={ctaCls}>{ctaInner}</a>
+                          <a href={ctaTo} target="_blank" rel="noreferrer" className="hm-cta">{ctaInner}</a>
                         )}
                         {p.body && (
                           <button type="button" onClick={() => openPromo(p)} className="hm-textlink">
@@ -234,22 +233,22 @@ export function Aktuelles() {
           )}
 
           {tournamentList.length > 0 && (
-            <div className="hm-events mt-10">
+            <div className="mt-12">
               <div className="hm-events-head">
                 <p className="ro-eyebrow text-primary-500">Turniere</p>
                 <h3 className="hm-events-title">Vereinsturniere</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
                 {tournamentList.map((t) => {
                   const reg = canRegister(t)
                   const full = t.max_entries != null && t.entry_count >= t.max_entries
                   const dm = dayMon(t.starts_at)
                   return (
-                    <div key={t.id} className="ro-card p-5 flex flex-col">
+                    <div key={t.id} className="hm-tour-card">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="ro-eyebrow text-primary-500">{t.format === 'double' ? 'Doppel' : 'Einzel'}</p>
-                          <h3 className="ro-card-title !text-[18px] mt-1">{t.title}</h3>
+                          <h3 className="hm-tour-title">{t.title}</h3>
                         </div>
                         <div className="hm-event-date shrink-0">
                           <b className="hm-event-day">{dm.day}</b>
@@ -267,13 +266,13 @@ export function Aktuelles() {
                       {regMsg && regMsg.id === t.id && (
                         <p className={`mt-3 text-[13px] ${regMsg.ok ? 'text-primary-400' : 'text-red-300'}`}>{regMsg.text}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-4 mt-3">
+                      <div className="flex flex-wrap items-center gap-5 mt-auto pt-4">
                         {reg && (
                           user ? (
                             <button
                               onClick={() => doRegister(t)}
                               disabled={regBusy === t.id || full}
-                              className={`hm-btn hm-btn-lime ${full ? 'opacity-50 pointer-events-none' : ''}`}
+                              className={`hm-cta ${full ? 'opacity-50 pointer-events-none' : ''}`}
                             >
                               {full ? 'Ausgebucht' : 'Melden'} <i className="ri-arrow-right-up-line" />
                             </button>

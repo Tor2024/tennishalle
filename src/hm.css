@@ -760,10 +760,66 @@
 .hm-partner span { font-size: 15px; font-weight: 600; color: var(--color-foreground-900); white-space: nowrap; }
 
 /* alias classes used by HTML templates (map to CSS definitions above) */
-.hm-promo-card { background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600)); border-radius: 18px; padding: 26px; color: oklch(.2 .02 150); display: flex; flex-direction: column; gap: 12px; }
-.hm-promo-pill { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; opacity: .75; margin: 0; }
-.hm-promo-sub { font-size: 14px; line-height: 1.5; opacity: .8; margin: 0; }
-.hm-btn-lime { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; font-weight: 700; font-size: 14px; color: oklch(.2 .02 150); text-decoration: none; border-bottom: 2px solid oklch(.2 .02 150 / .5); align-self: flex-start; }
+.hm-promo-card {
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 100% 0, color-mix(in oklab, var(--color-primary-500) 9%, transparent), transparent 60%),
+    color-mix(in oklab, var(--color-foreground-950) 3%, transparent);
+  border: 1px solid var(--hm-line);
+  border-radius: 18px;
+  padding: 24px;
+  color: var(--color-foreground-950);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.hm-promo-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--hm-lime), transparent 75%);
+}
+.hm-promo-pill { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .16em; color: var(--hm-lime); margin: 0; }
+.hm-promo-icon {
+  width: 46px; height: 46px; border-radius: 13px;
+  background: color-mix(in oklab, var(--hm-lime) 13%, transparent);
+  color: var(--hm-lime);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 23px;
+}
+.hm-promo-title { font-family: var(--font-heading); font-weight: 600; font-size: 21px; line-height: 1.25; margin: 0; color: var(--color-foreground-950); }
+.hm-promo-sub { font-size: 14px; line-height: 1.55; color: var(--color-foreground-700); margin: 0; }
+.hm-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--hm-lime); color: oklch(.2 .02 150);
+  font-weight: 700; font-size: 14px;
+  padding: 10px 18px; border-radius: 999px;
+  text-decoration: none; border: 0; cursor: pointer;
+  transition: filter .15s ease, transform .15s ease;
+}
+.hm-cta:hover { filter: brightness(1.07); }
+.hm-cta:active { transform: translateY(1px); }
+
+/* tournament cards — premium dark card with lime edge + subtle court-line motif */
+.hm-tour-card {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(90% 70% at 100% 0, color-mix(in oklab, var(--color-primary-500) 6%, transparent), transparent 55%),
+    color-mix(in oklab, var(--color-foreground-950) 3%, transparent);
+  border: 1px solid var(--hm-line);
+  border-radius: 18px;
+  padding: 24px;
+  color: var(--color-foreground-950);
+}
+.hm-tour-card::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: linear-gradient(180deg, var(--hm-lime), transparent 80%);
+}
+.hm-tour-card::after {
+  content: ""; position: absolute; pointer-events: none;
+  top: -30px; right: -30px; width: 120px; height: 120px;
+  border: 1px solid color-mix(in oklab, var(--color-primary-500) 22%, transparent);
+  border-radius: 50%;
+  transform: rotate(24deg);
+}
+.hm-tour-title { font-family: var(--font-heading); font-weight: 600; font-size: 21px; line-height: 1.25; margin: 2px 0 0; color: var(--color-foreground-950); }
 .hm-event-item { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid color-mix(in oklab, var(--color-foreground-950) 7%, transparent); }
 .hm-event-item:last-child { border-bottom: 0; }
 .hm-event-day { display: block; font-size: 24px; color: var(--hm-lime); }
