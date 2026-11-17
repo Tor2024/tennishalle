@@ -2,7 +2,7 @@
 import {
   db, TZ, pad2, toMin, toHHMM,
   berlinToday, berlinWeekday, berlinToUtc, genRef,
-  json, getUser,
+  json, getUser, sendBookingConfirmationEmail,
 } from "./_lib.js";
 
 export const config = { runtime: "nodejs" }; // Fluid Compute, streaming OK
@@ -162,6 +162,19 @@ async function createBooking(body: any, user: { id: string } | null): Promise<Re
         [ins.reference],
       );
       const full = fullRes.rows[0];
+      try {
+        await sendBookingConfirmationEmail({
+          to: email,
+          name,
+          reference: ins.reference,
+          courtName: full?.court_name ?? "Platz",
+          venueName: full?.venue_name ?? "TENNISHALLE",
+          startAt: full?.start_at ?? startAt.toISOString(),
+          endAt: full?.end_at ?? endAt.toISOString(),
+          durationMinutes: dur,
+          feeCents: full?.fee_cents ?? feeCents,
+        });
+      } catch { /* письмо не критично для брони */ }
       return json({ ok: true, reservation: {
         reference: full?.reference ?? ins.reference,
         status: full?.status ?? "confirmed",

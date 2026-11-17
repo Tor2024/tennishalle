@@ -145,14 +145,19 @@ function BookingsList({
             </div>
             <div className="col-span-12 md:col-span-5 flex flex-wrap items-center md:justify-end gap-3 pl-[16.66%] md:pl-0">
               <StatusChip status={e.status} />
-              <button
-                type="button"
-                onClick={() => downloadIcs(e, c?.name ?? 'Platz', venueName(c?.venue_id) || 'Tennishalle')}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-background-300 px-4 text-[13px] font-semibold text-foreground-800 hover:border-primary-500/60 hover:text-foreground-950 cursor-pointer transition-colors whitespace-nowrap"
-                aria-label={`Kalendereintrag für ${e.reference} herunterladen`}
-              >
-                <i className="ri-calendar-line" />Kalender
-              </button>
+              <div className="relative group/ics">
+                <button
+                  type="button"
+                  onClick={() => downloadIcs(e, c?.name ?? 'Platz', venueName(c?.venue_id) || 'Tennishalle')}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-background-300 px-4 text-[13px] font-semibold text-foreground-800 hover:border-primary-500/60 hover:text-foreground-950 cursor-pointer transition-colors whitespace-nowrap"
+                  aria-label={`Kalendereintrag für ${e.reference} herunterladen`}
+                >
+                  <i className="ri-calendar-line" />Kalender
+                </button>
+                <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-56 z-20 opacity-0 translate-y-1 group-hover/ics:opacity-100 group-hover/ics:translate-y-0 transition-all duration-200 rounded-lg border border-background-300/70 bg-background-100 px-3.5 py-2.5 text-[12px] leading-relaxed text-foreground-800 shadow-xl">
+                  Kalendereintrag (.ics) herunterladen — die Buchung landet in deinem Google-, Outlook- oder Apple-Kalender mit Erinnerung.
+                </span>
+              </div>
               {cancellable && (
                 <CancelButton
                   disabled={cancelling === e.id}

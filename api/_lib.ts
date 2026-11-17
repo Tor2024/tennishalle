@@ -153,3 +153,89 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   );
   return rows[0]?.ok === true;
 }
+
+// ---------- Brevo transactional emails (confirmation / reminder) ----------
+
+const SITE_URL = "https://tennishalle.vercel.app";
+const MAIL_SENDER = { name: "TENNISHALLE", email: process.env.BREVO_SENDER_EMAIL ?? "kalchenko2022@gmail.com" };
+
+/** Отправляет письмо через Brevo. Возвращает true если принято (2xx). Fail — не бросаем. */
+export async function sendBrevoEmail(to: string, subject: string, html: string): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": apiKey, "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ sender: MAIL_SENDER, to: [{ email: to }], subject, htmlContent: html }),
+    });
+    return res.status >= 200 && res.status < 300;
+  } catch {
+    return false;
+  }
+}
+
+const MAIL_WRAP = (title: string, bodyHtml: string, buttonLabel: string) => `
+<div style="font-family:Georgia,'Times New Roman',serif;background:#f4f6f2;padding:32px 16px">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e6de">
+    <div style="background:#0b120c;padding:28px 36px">
+      <span style="font-family:Arial,Helvetica,sans-serif;font-size:20px;letter-spacing:0.32em;color:#ffffff;font-weight:bold">TENNIS<span style="color:#d6f65a">HALLE</span></span>
+    </div>
+    <div style="padding:36px">
+      <h1 style="font-size:26px;color:#0b120c;margin:0 0 4px;font-weight:normal">${title}</h1>
+      ${bodyHtml}
+      <p style="margin:28px 0 0">
+        <a href="${SITE_URL}/account" style="display:inline-block;background:#d6f65a;color:#0b120c;padding:13px 26px;border-radius:999px;text-decoration:none;font-weight:bold;font-family:Arial,Helvetica,sans-serif;font-size:14px">${buttonLabel}</a>
+      </p>
+      <p style="color:#8a9188;font-size:13px;line-height:1.6;margin:26px 0 0;font-family:Arial,Helvetica,sans-serif">
+        Diese E-Mail wurde automatisch nach deiner Online-Buchung erstellt. Falls du sie nicht erwartet hast, ignoriere sie einfach — oder prüfe deine Buchungen unter <a href="${SITE_URL}/account" style="color:#5a7d1f">tennishalle.vercel.app/account</a>.
+      </p>
+    </div>
+    <div style="background:#f4f6f2;padding:18px 36px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8a9188">
+      TENNISHALLE · Dein Verein für Indoor- &amp; Outdoor-Tennis
+    </div>
+  </div>
+</div>`;
+
+const MAIL_ROW = (label: string, value: string) => `
+<tr>
+  <td style="padding:8px 0;color:#8a9188;font-family:Arial,Helvetica,sans-serif;font-size:13px;white-space:nowrap;padding-right:18px">${label}</td>
+  <td style="padding:8px 0;color:#0b120c;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold">${value}</td>
+</tr>`;
+
+/** Подтверждение бронирования — премиально, вежливо, в стиле сайта. */
+export async function sendBookingConfirmationEmail(opts: {
+  to: string; name: string; reference: string; courtName: string; venueName: string;
+  startAt: string; endAt: string; durationMinutes: number; feeCents: number;
+}): Promise<boolean> {
+  const dt = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: TZ }).format(new Date(opts.startAt));
+  const tm = (iso: string) => new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: TZ }).format(new Date(iso));
+  const price = (opts.feeCents / 100).toFixed(2).replace(".", ",");
+  const greeting = opts.name ? `Guten Tag ${opts.name},` : "Guten Tag,";
+  const html = MAIL_WRAP(
+    "Deine Buchung ist bestätigt.",
+    `<p style="color:#4a524a;font-size:15px;line-height:1.7;margin:14px 0 22px">${greeting} wir freuen uns, dass du bei uns spielst. Deine Reservierung haben wir wie folgt eingetragen:</p>
+     <table style="margin:0 0 8px;border-top:1px solid #e2e6de;width:100%">${MAIL_ROW("Platz", opts.courtName)}${MAIL_ROW("Anlage", opts.venueName)}${MAIL_ROW("Datum", dt)}${MAIL_ROW("Zeit", `${tm(opts.startAt)} – ${tm(opts.endAt)} Uhr`)}${MAIL_ROW("Dauer", `${opts.durationMinutes} Minuten`)}${MAIL_ROW("Platzgebühr", `${price} € — Zahlung direkt im Verein`)}</table>
+     <p style="margin:18px 0 0"><span style="display:inline-block;background:#f0f4e8;border:1px dashed #b9cc7a;border-radius:8px;padding:10px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#0b120c">Buchungsreferenz: <b>${opts.reference}</b></span></p>
+     <p style="color:#4a524a;font-size:14px;line-height:1.7;margin:22px 0 0">Wir freuen uns auf dich! Bitte komm einige Minuten vor Spielbeginn — Umkleiden und Duschen findest du im Nebenflügel der Halle.</p>`,
+    "Buchung ansehen",
+  );
+  return sendBrevoEmail(opts.to, `Deine Buchung ist bestätigt — TENNISHALLE`, html);
+}
+
+/** Erinnerung за 24 часа. */
+export async function sendBookingReminderEmail(opts: {
+  to: string; name: string; reference: string; courtName: string; venueName: string; startAt: string; endAt: string;
+}): Promise<boolean> {
+  const dt = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: TZ }).format(new Date(opts.startAt));
+  const tm = (iso: string) => new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: TZ }).format(new Date(iso));
+  const greeting = opts.name ? `Guten Tag ${opts.name},` : "Guten Tag,";
+  const html = MAIL_WRAP(
+    "Morgen spielst du bei uns.",
+    `<p style="color:#4a524a;font-size:15px;line-height:1.7;margin:14px 0 22px">${greeting} morgen steht dein Tennis-Termin an — wir halten den Platz für dich bereit:</p>
+     <table style="margin:0 0 8px;border-top:1px solid #e2e6de;width:100%">${MAIL_ROW("Platz", opts.courtName)}${MAIL_ROW("Anlage", opts.venueName)}${MAIL_ROW("Wann", `${dt}, ${tm(opts.startAt)} Uhr`)}${MAIL_ROW("Referenz", opts.reference)}</table>
+     <p style="color:#4a524a;font-size:14px;line-height:1.7;margin:22px 0 0">Wir freuen uns auf dich! Bis morgen — dein TENNISHALLE Team.</p>`,
+    "Buchung ansehen",
+  );
+  return sendBrevoEmail(opts.to, `Morgen: Dein Tennis-Termin — TENNISHALLE`, html);
+}
