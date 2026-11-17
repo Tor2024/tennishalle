@@ -651,6 +651,15 @@ function slotTimesForCourt(c: AdminCourt, zones: Zone[], hours: { weekday: numbe
   return out
 }
 
+function courtPriceRange(zs: Zone[]): string | null {
+  if (zs.length === 0) return null
+  const prices = zs.map((z) => z.price_cents / 100)
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  const fmt = (n: number) => n.toFixed(2).replace('.', ',').replace(/,00$/, '')
+  return min === max ? `${fmt(min)} € / Std.` : `${fmt(min)}–${fmt(max)} € / Std.`
+}
+
 function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () => void }) {
   const [courts, setCourts] = useState<AdminCourt[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
@@ -743,7 +752,7 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                     </span>
                   </div>
                   <p className="mt-2 text-[13px] text-foreground-700">
-                    {c.environment ?? 'Halle'} · {c.surface ?? '—'} · {c.hourly_price != null ? `${Number(c.hourly_price).toFixed(2).replace('.', ',')} € / Std.` : 'keine Preisangabe'} · {c.hours_count ?? 0} Öffnungszeiten · {c.zone_count ?? courtZones(c.id).length} Preiszonen
+                    {c.environment ?? 'Halle'} · {c.surface ?? '—'} · {courtPriceRange(courtZones(c.id)) ?? <span className="text-amber-500 font-medium">keine Preiszonen</span>} · {c.hours_count ?? 0} Öffnungszeiten · {c.zone_count ?? courtZones(c.id).length} Preiszonen
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button onClick={() => setEditing(c)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
@@ -777,9 +786,15 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                 </div>
               </div>
 
+              {zoneCourt === c.id && courtZones(c.id).length === 0 && (
+                <div className="mt-5 rounded-lg border border-primary-500/40 bg-primary-500/10 px-4 py-3 text-[13px] text-primary-400">
+                  <span className="font-semibold">Einrichtung:</span> Schritt 2 — Preiszonen festlegen → Schritt 3 — Öffnungszeiten prüfen. Danach ist der Platz buchbar.
+                </div>
+              )}
+
               {hoursCourt === c.id && (
                 <div className="mt-5 pt-5 border-t border-foreground-950/10">
-                  <p className="ro-eyebrow text-foreground-600 mb-3">Öffnungszeiten · {c.name}</p>
+                  <p className="ro-eyebrow text-foreground-600 mb-3 flex items-center gap-1.5">Öffnungszeiten · {c.name} <InfoHint text="Definiert, wann der Platz buchbar ist. Gäste sehen nur Slots innerhalb der Öffnungszeiten." /></p>
                   <div className="space-y-2">
                     {hoursRows.map((h, i) => (
                       <div key={h.weekday} className="flex items-center gap-3 text-[13px]">
@@ -814,13 +829,13 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
               {zoneCourt === c.id && (
                 <div className="mt-5 pt-5 border-t border-foreground-950/10">
                   <div className="flex items-center justify-between gap-3 mb-3">
-                    <p className="ro-eyebrow text-foreground-600">Preiszonen · {c.name}</p>
+                    <p className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Preiszonen · {c.name} <InfoHint text="Eine Zone = Wochentage + Zeitfenster + Preis pro Stunde. Der Preis wird auf 30-Min-Slots aufgeteilt (€/2 pro Slot). Slots ohne Zone nutzen keinen Preis — lege Zonen für die gesamte Öffnungszeit an." /></p>
                     <button onClick={() => setEditingZone('new')} className="h-8 px-3 rounded-full bg-primary-500 text-background-50 text-[12px] font-medium hover:bg-primary-400 cursor-pointer">
                       <i className="ri-add-line" />Zone
                     </button>
                   </div>
                   {courtZones(c.id).length === 0 ? (
-                    <p className="text-[13px] text-foreground-500 py-2">Noch keine Zonen — Gäste zahlen den Stundenpreis.</p>
+                    <p className="text-[13px] text-amber-500 py-2">Noch keine Zonen — der Platz ist ohne Preiszonen nicht buchbar.</p>
                   ) : (
                     <ul className="divide-y divide-foreground-950/[0.07]">
                       {courtZones(c.id).map((z) => (
@@ -880,7 +895,17 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
         </div>
       )}
 
-      {editing && <CourtModal court={editing === 'new' ? null : editing} venues={venues} onClose={() => setEditing(null)} onSaved={(msg) => { setEditing(null); setMessage(msg); load(); onCatalogReload() }} />}
+      {editing && <CourtModal court={editing === 'new' ? null : editing} venues={venues} onClose={() => setEditing(null)} onSaved={(msg, courtId) => {
+        setEditing(null)
+        setMessage(msg)
+        load().then(() => {
+          if (courtId) {
+            setZoneCourt(courtId)
+            apiAdmin<{ ok: boolean; hours?: { weekday: number; opens: string; closes: string }[] }>('hours', { court_id: courtId }).then((r) => setZoneHours(r.hours ?? []))
+          }
+        })
+        onCatalogReload()
+      }} />}
       {editingZone && zoneCourt && <ZoneModal zone={editingZone === 'new' ? null : editingZone} courtId={zoneCourt} courts={courts} onClose={() => setEditingZone(null)} onSaved={(msg) => { setEditingZone(null); setMessage(msg); load() }} />}
     </div>
   )
@@ -1548,7 +1573,8 @@ function LegalModal({ page, onClose, onSaved, busy }: { page: AdminLegal; onClos
   )
 }
 
-function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string) => void }) {  const [form, setForm] = useState({
+function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | null; venues: Venue[]; onClose: () => void; onSaved: (msg: string, courtId?: string) => void }) {
+  const [form, setForm] = useState({
     name: court?.name ?? '',
     venue_id: court?.venue_id ?? venues[0]?.id ?? '',
     surface: court?.surface ?? '',
@@ -1601,8 +1627,9 @@ function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | n
             <input value={form.surface} onChange={(e) => set('surface', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Rebound Ace" /></label>
           <label className="block"><span className="ro-eyebrow text-foreground-600">Platz-Nr.</span>
             <input type="number" value={form.court_number} onChange={(e) => set('court_number', e.target.value)} className={ADMIN_FIELD_CLS} /></label>
-          <label className="block"><span className="ro-eyebrow text-foreground-600">Std-Preis (€)</span>
-            <input type="number" step="0.01" value={form.hourly_price} onChange={(e) => set('hourly_price', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="22" /></label>
+          <div className="self-end text-[12px] text-foreground-500 leading-snug pb-1">
+            Preise definierst du nach dem Anlegen über <span className="font-semibold text-foreground-700">Preiszonen</span>.
+          </div>
         </div>
         <label className="block mt-4"><span className="ro-eyebrow text-foreground-600">Bild-URL</span>
           <input value={form.image_url} onChange={(e) => set('image_url', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="/assets/img/… oder https://…" /></label>
@@ -1632,9 +1659,9 @@ function CourtModal({ court, venues, onClose, onSaved }: { court: AdminCourt | n
             busy={busy}
             onConfirm={async () => {
               setBusy(true); setError('')
-              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_court', { ...form, id: court?.id })
+              const r = await apiAdmin<{ ok: boolean; message?: string; id?: string }>('save_court', { ...form, id: court?.id })
               setBusy(false)
-              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.', r.id)
               else setError(r.message ?? 'Fehler')
             }}
           />
