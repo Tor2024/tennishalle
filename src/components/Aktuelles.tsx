@@ -209,10 +209,12 @@ export function Aktuelles() {
                   const ctaInner = <>{ctaLabel} <i className="ri-arrow-right-up-line" /></>
                   return (
                     <div key={p.id} className="hm-promo-card">
-                      <p className="hm-promo-pill">Angebot</p>
-                      {p.image_path
-                        ? <img className="hm-promo-img" src={p.image_path} alt="" loading="lazy" />
-                        : p.icon && <div className="hm-promo-icon"><i className={p.icon} /></div>}
+                      <div className="hm-promo-media">
+                        {p.image_path
+                          ? <img className="hm-promo-img" src={p.image_path} alt="" loading="lazy" />
+                          : <span className="hm-promo-ph"><i className={p.icon || 'ri-gift-line'} aria-hidden="true" /></span>}
+                        <span className="hm-promo-pill">Angebot</span>
+                      </div>
                       <p className="hm-promo-title">{p.title}</p>
                       {p.lead && <p className="hm-promo-sub line-clamp-2">{p.lead}</p>}
                       <div className="flex flex-wrap items-center gap-4 mt-auto pt-4">
