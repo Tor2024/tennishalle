@@ -5,7 +5,7 @@ import { Reveal } from './Reveal'
 import { RichText } from '../lib/richText'
 
 interface NewsRow { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published_at: string | null; author_name?: string | null }
-interface PromoRow { id: string; title: string; lead: string | null; body: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null; icon?: string | null; cta_label?: string | null; cta_link?: string | null }
+interface PromoRow { id: string; title: string; lead: string | null; body: string | null; image_path?: string | null; promo_expires_at: string | null; published_at?: string | null; author_name?: string | null; icon?: string | null; cta_label?: string | null; cta_link?: string | null }
 interface EventRow { id: string; kind: string; title: string; participants: string | null; starts_at: string; description: string | null }
 interface TournamentRow {
   id: string; title: string; description: string | null; format: 'single' | 'double'; fee_cents: number
@@ -132,7 +132,7 @@ export function Aktuelles() {
     setOpenPost({ title: n.title, lead: n.lead, body: n.body, image_path: n.image_path, meta: newsMeta(n) })
   const openPromo = (p: PromoRow) =>
     setOpenPost({
-      title: p.title, lead: p.lead, body: p.body, image_path: null,
+      title: p.title, lead: p.lead, body: p.body, image_path: p.image_path ?? null,
       meta: [fmtDate(p.published_at), p.author_name].filter(Boolean).join(' · '),
       cta_label: p.cta_label || 'Jetzt buchen', cta_link: p.cta_link || '/book',
     })
@@ -210,7 +210,9 @@ export function Aktuelles() {
                   return (
                     <div key={p.id} className="hm-promo-card">
                       <p className="hm-promo-pill">Angebot</p>
-                      {p.icon && <div className="hm-promo-icon"><i className={p.icon} /></div>}
+                      {p.image_path
+                        ? <img className="hm-promo-img" src={p.image_path} alt="" loading="lazy" />
+                        : p.icon && <div className="hm-promo-icon"><i className={p.icon} /></div>}
                       <p className="hm-promo-title">{p.title}</p>
                       {p.lead && <p className="hm-promo-sub line-clamp-2">{p.lead}</p>}
                       <div className="flex flex-wrap items-center gap-4 mt-auto pt-4">

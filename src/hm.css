@@ -784,6 +784,10 @@
   background: linear-gradient(90deg, var(--hm-lime), transparent 75%);
 }
 .hm-promo-pill { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .16em; color: var(--hm-lime); margin: 0; }
+.hm-promo-img {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: 12px; border: 1px solid var(--hm-line);
+}
 .hm-promo-icon {
   width: 46px; height: 46px; border-radius: 13px;
   background: color-mix(in oklab, var(--hm-lime) 13%, transparent);
