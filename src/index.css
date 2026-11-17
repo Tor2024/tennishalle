@@ -377,6 +377,15 @@ input, textarea, select {
   transition: border-color 0.25s, background-color 0.25s;
 }
 
+/* dark native controls (select popup, date pickers) — site is dark-themed */
+:root {
+  color-scheme: dark;
+}
+select option, select optgroup {
+  background-color: oklch(20% 0.014 160);
+  color: var(--color-foreground-950);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
