@@ -83,7 +83,19 @@ async function availability(body: any): Promise<Response> {
       .filter((z: any) => z.weekdays.includes(weekday))
       .find((z: any) => z.start_time.slice(0, 5) <= startHHMM && startHHMM < z.end_time.slice(0, 5));
 
-    slots.push({ time: startHHMM, available: !isPast && !blocked && !taken, price: zone ? (zone.price_cents * durationMin) / 60 : null });
+    // slot only bookable when the whole requested duration is covered by price zones
+    let covered = false;
+    if (zone) {
+      const base = toMin(startHHMM);
+      covered = true;
+      for (let m = 0; m < durationMin; m += 30) {
+        const s = base + m;
+        const ok = zones.some((z: any) => z.weekdays.includes(weekday) && toMin(z.start_time.slice(0, 5)) <= s && s + 30 <= toMin(z.end_time.slice(0, 5)));
+        if (!ok) { covered = false; break; }
+      }
+    }
+
+    slots.push({ time: startHHMM, available: !isPast && !blocked && !taken && covered, price: zone ? (zone.price_cents * durationMin) / 60 : null });
   }
   return json({ ok: true, times: slots, closed: false });
 }
@@ -139,6 +151,16 @@ async function createBooking(body: any, user: { id: string } | null): Promise<Re
   const zone = zones
     .filter((z: any) => z.weekdays.includes(weekday))
     .find((z: any) => z.start_time.slice(0, 5) <= start_time && start_time < z.end_time.slice(0, 5));
+
+  // every 30-min slot of the booking must be covered by a price zone — uncovered slots must not be bookable (free booking)
+  const dayZones = zones.filter((z: any) => z.weekdays.includes(weekday));
+  for (let m = 0; m < dur; m += 30) {
+    const slotStart = startMin + m;
+    const slotEnd = slotStart + 30;
+    const hit = dayZones.some((z: any) => toMin(z.start_time.slice(0, 5)) <= slotStart && slotEnd <= toMin(z.end_time.slice(0, 5)));
+    if (!hit) return json({ ok: false, code: "no_price", message: "Dieser Zeitraum ist nicht buchbar — keine Preiszone hinterlegt." }, 400);
+  }
+
   const feeCents = zone?.price_cents ? Math.round((zone.price_cents * dur) / 60) : 0;
 
   for (let attempt = 0; attempt < 3; attempt++) {

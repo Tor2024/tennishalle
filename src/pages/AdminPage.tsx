@@ -660,6 +660,31 @@ function courtPriceRange(zs: Zone[]): string | null {
   return min === max ? `${fmt(min)} € / Std.` : `${fmt(min)}–${fmt(max)} € / Std.`
 }
 
+// uncovered intervals within opening hours: slots without a price zone are not bookable
+function coverageGaps(courtId: string, zs: Zone[], hours: { weekday: number; opens: string; closes: string }[] | undefined): { wd: number; text: string }[] {
+  if (!hours) return []
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  const gaps: { wd: number; text: string }[] = []
+  for (const h of hours) {
+    if (h.opens >= h.closes) continue
+    const dayZones = zs.filter((z) => z.court_id === courtId && z.weekdays.includes(h.weekday))
+    const uncovered: [number, number][] = []
+    for (let s = toMin(h.opens); s + 30 <= toMin(h.closes); s += 30) {
+      const hit = dayZones.some((z) => toMin(z.start_time) <= s && s + 30 <= toMin(z.end_time))
+      if (!hit) {
+        const last = uncovered[uncovered.length - 1]
+        if (last && last[1] === s) last[1] = s + 30
+        else uncovered.push([s, s + 30])
+      }
+    }
+    if (uncovered.length > 0) {
+      const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+      gaps.push({ wd: h.weekday, text: uncovered.map(([a, b]) => `${fmt(a)}–${fmt(b)}`).join(', ') })
+    }
+  }
+  return gaps
+}
+
 function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () => void }) {
   const [courts, setCourts] = useState<AdminCourt[]>([])
   const [venues, setVenues] = useState<Venue[]>([])
@@ -674,6 +699,7 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
   const [hoursRows, setHoursRows] = useState<{ weekday: number; opens: string; closes: string }[]>([])
   const [zoneHours, setZoneHours] = useState<{ weekday: number; opens: string; closes: string }[]>([]) // hours for the court whose zones panel is open
   const [priceHistoryRows, setPriceHistoryRows] = useState<{ id: string; court_id: string; zone_label: string; old_price_cents: number | null; new_price_cents: number | null; changed_at: string }[]>([])
+  const [allHours, setAllHours] = useState<Record<string, { weekday: number; opens: string; closes: string }[]>>({})
 
   const load = async () => {
     setError('')
@@ -681,7 +707,13 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
       const r = await apiAdmin<{ ok: boolean; courts: AdminCourt[]; venues: Venue[] }>('courts', {})
       const z = await apiAdmin<{ ok: boolean; zones: Zone[] }>('zones', {})
       apiAdmin<{ ok: boolean; history: typeof priceHistoryRows }>('price_history', {}).then((h) => { if (h.ok) setPriceHistoryRows(h.history ?? []) })
-      if (r.ok) { setCourts(r.courts); setVenues(r.venues) }
+      if (r.ok) {
+        setCourts(r.courts); setVenues(r.venues)
+        for (const c of r.courts) {
+          apiAdmin<{ ok: boolean; hours?: { weekday: number; opens: string; closes: string }[] }>('hours', { court_id: c.id })
+            .then((h) => setAllHours((prev) => ({ ...prev, [c.id]: h.hours ?? [] })))
+        }
+      }
       if (z.ok) setZones(z.zones)
     } catch {
       setError('Netzwerkfehler. Bitte erneut versuchen.')
@@ -754,6 +786,19 @@ function CourtsTab({ onCatalogReload }: { catalog: Catalog; onCatalogReload: () 
                   <p className="mt-2 text-[13px] text-foreground-700">
                     {c.environment ?? 'Halle'} · {c.surface ?? '—'} · {courtPriceRange(courtZones(c.id)) ?? <span className="text-amber-500 font-medium">keine Preiszonen</span>} · {c.hours_count ?? 0} Öffnungszeiten · {c.zone_count ?? courtZones(c.id).length} Preiszonen
                   </p>
+                  {(() => {
+                    const gaps = coverageGaps(c.id, zones, allHours[c.id])
+                    if (gaps.length === 0) return null
+                    return (
+                      <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-500 flex items-start gap-2">
+                        <i className="ri-error-warning-line mt-0.5" />
+                        <span>
+                          <span className="font-semibold">Nicht abgedeckt — diese Slots sind nicht buchbar:</span>{' '}
+                          {gaps.map((g) => `${WD_FULL[g.wd]} ${g.text}`).join(' · ')}
+                        </span>
+                      </p>
+                    )
+                  })()}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button onClick={() => setEditing(c)} className="h-9 px-4 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer">
                       <i className="ri-edit-line mr-1" />Bearbeiten
