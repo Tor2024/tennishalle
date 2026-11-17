@@ -128,6 +128,10 @@ export async function me(): Promise<AppUser | null> {
   }
 }
 
+export async function registerTournament(tournamentId: string, body: { partner_name?: string; note?: string } = {}): Promise<{ ok: boolean; message?: string; entry_count?: number }> {
+  return apiData('tournament_register', { tournament_id: tournamentId, ...body })
+}
+
 export async function updateProfile(body: { full_name: string; phone: string }): Promise<{ ok: boolean; user?: AppUser; message?: string }> {
   return apiAuth('update_profile', body)
 }

@@ -577,6 +577,76 @@ async function deleteEvent(body: Record<string, unknown>) {
   return json({ ok: true, message: 'Termin geloescht.' })
 }
 
+// --- Turniere (Phase 3) ---
+const TOURNAMENT_STATUSES = ['announcement', 'registration', 'running', 'finished']
+
+async function tournamentsList() {
+  const r = await db().query(
+    `select t.*, (select count(*) from tournament_entries e where e.tournament_id = t.id) as entry_count
+       from tournaments t order by t.starts_at desc`,
+  )
+  return json({ ok: true, tournaments: r.rows })
+}
+
+async function saveTournament(body: Record<string, unknown>, user: SessionUser) {
+  const title = String(body.title ?? '').trim()
+  const startsAt = String(body.starts_at ?? '').trim()
+  if (!title || !startsAt) return json({ ok: false, code: 'bad_request', message: 'Titel und Beginn sind Pflichtfelder.' }, 400)
+  const status = TOURNAMENT_STATUSES.includes(String(body.status)) ? String(body.status) : 'announcement'
+  const format = String(body.format) === 'double' ? 'double' : 'single'
+  const description = String(body.description ?? '').trim() || null
+  const feeCents = Math.max(0, Math.round(Number(body.fee_eur ?? 0) * 100))
+  const deadline = String(body.registration_deadline ?? '').trim() || null
+  const maxEntriesRaw = Number(body.max_entries)
+  const maxEntries = Number.isFinite(maxEntriesRaw) && maxEntriesRaw > 0 ? Math.round(maxEntriesRaw) : null
+  const imagePath = String(body.image_path ?? '').trim() || null
+  const isPublished = body.is_published !== false
+  const id = typeof body.id === 'string' && body.id ? body.id : null
+
+  if (id) {
+    const r = await db().query(
+      `update tournaments set title=$1, description=$2, format=$3, fee_cents=$4, starts_at=$5::timestamptz,
+        registration_deadline=$6::timestamptz, max_entries=$7, status=$8, image_path=$9, is_published=$10, updated_at=now()
+       where id=$11 returning id`,
+      [title, description, format, feeCents, startsAt, deadline, maxEntries, status, imagePath, isPublished, id],
+    )
+    if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Turnier nicht gefunden.' }, 404)
+    return json({ ok: true, id: r.rows[0].id, message: 'Turnier gespeichert.' })
+  }
+  const r = await db().query(
+    `insert into tournaments (id, title, description, format, fee_cents, starts_at, registration_deadline, max_entries, status, image_path, is_published, created_by)
+     values (gen_random_uuid(), $1, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9, $10, $11) returning id`,
+    [title, description, format, feeCents, startsAt, deadline, maxEntries, status, imagePath, isPublished, user.id],
+  )
+  return json({ ok: true, id: r.rows[0].id, message: 'Turnier angelegt.' })
+}
+
+async function deleteTournament(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  await db().query(`delete from tournaments where id = $1`, [id])
+  return json({ ok: true, message: 'Turnier geloescht.' })
+}
+
+async function tournamentEntries(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  const r = await db().query(
+    `select e.id, e.partner_name, e.note, e.created_at, u.full_name, u.email, u.phone
+       from tournament_entries e join app_users u on u.id = e.user_id
+      where e.tournament_id = $1 order by e.created_at`,
+    [id],
+  )
+  return json({ ok: true, entries: r.rows })
+}
+
+async function removeEntry(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  await db().query(`delete from tournament_entries where id = $1`, [id])
+  return json({ ok: true, message: 'Meldung entfernt.' })
+}
+
 // legal pages (agb/impressum/datenschutz/cookies) — read + edit (id fixed, no create/delete)
 async function legalList() {
   const r = await db().query(`select id, title, body, updated_at from legal_pages order by id`)
@@ -697,6 +767,11 @@ export async function POST(req: Request): Promise<Response> {
       case 'events': return await eventsList()
       case 'save_event': return await saveEvent(body, auth.user)
       case 'delete_event': return await deleteEvent(body)
+      case 'tournaments': return await tournamentsList()
+      case 'save_tournament': return await saveTournament(body, auth.user)
+      case 'delete_tournament': return await deleteTournament(body)
+      case 'tournament_entries': return await tournamentEntries(body)
+      case 'remove_entry': return await removeEntry(body)
       case 'legal': return await legalList()
       case 'save_legal': return await saveLegal(body)
       case 'hours': return await hoursList(body)

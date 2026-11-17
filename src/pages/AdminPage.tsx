@@ -1135,9 +1135,17 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
   )
 }
 
-// ---------- content tab (news / promo / events) ----------
+// ---------- content tab (news / promo / events / tournaments) ----------
 interface AdminPost { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null; icon: string | null; cta_label: string | null; cta_link: string | null }
 interface AdminEvent { id: string; kind: string; title: string; participants: string | null; starts_at: string; ends_at: string | null; description: string | null; is_published: boolean }
+interface AdminTournament { id: string; title: string; description: string | null; format: 'single' | 'double'; fee_cents: number; starts_at: string; registration_deadline: string | null; max_entries: number | null; status: 'announcement' | 'registration' | 'running' | 'finished'; is_published: boolean; image_path: string | null; entry_count: number }
+interface AdminTournamentEntry { id: string; full_name: string; email: string; phone: string | null; partner_name: string | null; note: string | null; created_at: string }
+const TOURNAMENT_STATUS = [
+  { id: 'announcement', label: 'Angekündigt' },
+  { id: 'registration', label: 'Anmeldung läuft' },
+  { id: 'running', label: 'Läuft gerade' },
+  { id: 'finished', label: 'Beendet' },
+] as const
 const EVENT_KINDS = [
   { id: 'match', label: 'Spiel' },
   { id: 'tournament', label: 'Turnier' },
@@ -1153,17 +1161,22 @@ function ContentTab() {
   const [message, setMessage] = useState('')
   const [editingPost, setEditingPost] = useState<AdminPost | null | 'new'>(null)
   const [editingEvent, setEditingEvent] = useState<AdminEvent | null | 'new'>(null)
+  const [tournaments, setTournaments] = useState<AdminTournament[]>([])
+  const [editingTournament, setEditingTournament] = useState<AdminTournament | null | 'new'>(null)
+  const [entriesFor, setEntriesFor] = useState<AdminTournament | null>(null)
 
   const load = () => {
     setLoading(true)
     Promise.all([
       apiAdmin<{ ok: boolean; posts?: AdminPost[]; message?: string }>('posts'),
       apiAdmin<{ ok: boolean; events?: AdminEvent[]; message?: string }>('events'),
+      apiAdmin<{ ok: boolean; tournaments?: AdminTournament[]; message?: string }>('tournaments'),
     ])
-      .then(([p, e]) => {
+      .then(([p, e, t]) => {
         if (p.ok && p.posts) setPosts(p.posts)
         else setError(p.message ?? 'Fehler beim Laden.')
         if (e.ok && e.events) setEvents(e.events)
+        if (t.ok && t.tournaments) setTournaments(t.tournaments)
       })
       .catch(() => setError('Netzwerkfehler.'))
       .finally(() => setLoading(false))
@@ -1206,6 +1219,7 @@ function ContentTab() {
         <h1 className="ro-h2 !text-[28px]">Aktuelles</h1>
         <div className="flex gap-2">
           <button onClick={() => setEditingPost('new')} className="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 cursor-pointer"><i className="ri-add-line" />Beitrag</button>
+          <button onClick={() => setEditingTournament('new')} className="h-10 px-5 rounded-full border border-primary-500/60 text-primary-500 text-[13px] font-medium hover:bg-primary-500/10 cursor-pointer"><i className="ri-trophy-line" />Turnier</button>
           <button onClick={() => setEditingEvent('new')} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium hover:border-primary-500/60 cursor-pointer"><i className="ri-add-line" />Termin</button>
         </div>
       </div>
@@ -1220,6 +1234,44 @@ function ContentTab() {
             <p className="text-[14px] text-foreground-600">Noch keine Beiträge angelegt.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{posts.map(postCard)}</div>
+          )}
+          <p className="ro-eyebrow text-foreground-600 mt-10 mb-3">Turniere ({tournaments.length})</p>
+          {tournaments.length === 0 ? (
+            <p className="text-[14px] text-foreground-600">Noch keine Turniere angelegt.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {tournaments.map((t) => (
+                <div key={t.id} className={`ro-card p-5 ${t.is_published ? '' : 'opacity-50'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="ro-eyebrow text-primary-500">{t.format === 'double' ? 'Doppel' : 'Einzel'}</p>
+                      <p className="ro-card-title !text-[16px] mt-1 truncate">{t.title}</p>
+                    </div>
+                    <span className={`shrink-0 inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] font-medium ${t.status === 'registration' || t.status === 'running' ? 'border-primary-500/60 text-primary-500' : 'border-foreground-950/20 text-foreground-500'}`}>
+                      {TOURNAMENT_STATUS.find((s) => s.id === t.status)?.label ?? t.status}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-foreground-600 mt-1">{new Date(t.starts_at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin' })}</p>
+                  <p className="text-[12px] text-foreground-500 mt-0.5">
+                    {t.entry_count} Anmeldung{t.entry_count === 1 ? '' : 'en'}{t.max_entries ? ` · max. ${t.max_entries}` : ''}{t.fee_cents > 0 ? ` · ${(t.fee_cents / 100).toFixed(0)} €` : ''}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button onClick={() => setEntriesFor(t)} className="h-8 px-3 rounded-full border border-foreground-950/20 text-[12px] hover:border-primary-500/60 cursor-pointer"><i className="ri-group-line" />Teilnehmer ({t.entry_count})</button>
+                    <button onClick={() => setEditingTournament(t)} className="h-8 px-3 rounded-full border border-foreground-950/20 text-[12px] hover:border-primary-500/60 cursor-pointer"><i className="ri-edit-line" />Bearbeiten</button>
+                    <ConfirmButton
+                      label="Löschen"
+                      confirmLabel="Wirklich löschen?"
+                      cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60"
+                      onConfirm={async () => {
+                        const r = await apiAdmin<{ ok: boolean; message?: string }>('delete_tournament', { id: t.id })
+                        setMessage(r.ok ? r.message ?? 'Geloescht.' : r.message ?? 'Fehler')
+                        await load()
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
           <p className="ro-eyebrow text-foreground-600 mt-10 mb-3">Termine ({events.length})</p>
           {events.length === 0 ? (
@@ -1253,6 +1305,8 @@ function ContentTab() {
       )}
       {editingPost && <PostModal post={editingPost === 'new' ? null : editingPost} onClose={() => setEditingPost(null)} onSaved={(msg) => { setMessage(msg); setEditingPost(null); load() }} />}
       {editingEvent && <EventModal event={editingEvent === 'new' ? null : editingEvent} onClose={() => setEditingEvent(null)} onSaved={(msg) => { setMessage(msg); setEditingEvent(null); load() }} />}
+      {editingTournament && <TournamentModal tournament={editingTournament === 'new' ? null : editingTournament} onClose={() => setEditingTournament(null)} onSaved={(msg) => { setMessage(msg); setEditingTournament(null); load() }} />}
+      {entriesFor && <TournamentEntriesModal tournament={entriesFor} onClose={() => setEntriesFor(null)} onChanged={load} />}
     </div>
   )
 }
@@ -1448,6 +1502,156 @@ function EventModal({ event, onClose, onSaved }: { event: AdminEvent | null; onC
               else setError(r.message ?? 'Fehler')
             }}
           />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TournamentModal({ tournament, onClose, onSaved }: { tournament: AdminTournament | null; onClose: () => void; onSaved: (msg: string) => void }) {
+  const [form, setForm] = useState({
+    title: tournament?.title ?? '',
+    description: tournament?.description ?? '',
+    format: (tournament?.format ?? 'single') as 'single' | 'double',
+    fee_eur: tournament ? String(tournament.fee_cents / 100) : '0',
+    starts_at: tournament?.starts_at ? tournament.starts_at.slice(0, 16) : '',
+    registration_deadline: tournament?.registration_deadline ? tournament.registration_deadline.slice(0, 16) : '',
+    max_entries: tournament?.max_entries ? String(tournament.max_entries) : '',
+    status: (tournament?.status ?? 'announcement') as AdminTournament['status'],
+    is_published: tournament?.is_published ?? true,
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">{tournament ? 'Turnier bearbeiten' : 'Neues Turnier'}</p>
+        <h3 className="mt-2 ro-card-title">{tournament ? tournament.title : 'Turnier anlegen'}</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        <label className="block mt-5"><span className="ro-eyebrow text-foreground-600">Titel *</span>
+          <input value={form.title} onChange={(e) => set('title', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Vereinsmeisterschaft 2026" /></label>
+        <label className="block mt-4">
+          <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Beschreibung <InfoHint text="Formatierung: Leerzeile = neuer Absatz, **Text** = fett, Zeilen die mit - beginnen = Aufzählung. Kurz halten: Modus, Modus-Besonderheiten, Zielgruppe." /></span>
+          <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={4} className={`${ADMIN_FIELD_CLS} resize-y`} placeholder={`Modus und Ablauf…\n\n- 2 Gewinnsätze\n- 15 Punkte pro Satz`} /></label>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Format <InfoHint text="Einzel oder Doppel. Bei Doppel melden sich Teilnehmer mit Partner — das Feld dafür erscheint im Meldeformular." /></span>
+            <select value={form.format} onChange={(e) => set('format', e.target.value)} className={ADMIN_FIELD_CLS}>
+              <option value="single">Einzel</option>
+              <option value="double">Doppel</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Startgeld (€) <InfoHint text="Startgeld pro Teilnehmer in Euro, 0 = kostenlos. Wird auf der Website angezeigt, aber nicht automatisch abgerechnet." /></span>
+            <input type="number" min="0" step="1" value={form.fee_eur} onChange={(e) => set('fee_eur', e.target.value)} className={ADMIN_FIELD_CLS} />
+          </label>
+        </div>
+        <label className="block mt-4">
+          <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Beginn * <InfoHint text="Wann das Turnier startet. Erscheint mit Datum und Uhrzeit auf der Website (Zeitzone Europe/Berlin)." /></span>
+          <input type="datetime-local" value={form.starts_at} onChange={(e) => set('starts_at', e.target.value)} className={ADMIN_FIELD_CLS} />
+        </label>
+        <label className="block mt-4">
+          <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Anmeldefrist <InfoHint text="Nach diesem Datum ist keine Anmeldung mehr möglich (Button auf der Website wird gesperrt). Leer = Anmeldung bis Turnierbeginn." /></span>
+          <input type="datetime-local" value={form.registration_deadline} onChange={(e) => set('registration_deadline', e.target.value)} className={ADMIN_FIELD_CLS} />
+        </label>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Max. Teilnehmer <InfoHint text="Obergrenze der Anmeldungen. Erreicht, zeigt die Website «Ausgebucht». Leer = unbegrenzt." /></span>
+            <input type="number" min="1" step="1" value={form.max_entries} onChange={(e) => set('max_entries', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="unbegrenzt" />
+          </label>
+          <label className="block">
+            <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Status <InfoHint text="Angekündigt/Anmeldung läuft = Melden möglich. Läuft gerade/Beendet = Melden gesperrt. Status kannst du jederzeit ändern." /></span>
+            <select value={form.status} onChange={(e) => set('status', e.target.value)} className={ADMIN_FIELD_CLS}>
+              {TOURNAMENT_STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <label className="mt-4 flex items-center gap-2 cursor-pointer text-[13px] text-foreground-700">
+          <input type="checkbox" checked={form.is_published} onChange={(e) => set('is_published', e.target.checked)} className="accent-[var(--color-primary-500)]" />
+          Veröffentlicht (sichtbar auf der Website)
+        </label>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
+          <ConfirmButton
+            label={tournament ? 'Speichern' : 'Anlegen'}
+            confirmLabel={tournament ? 'Wirklich speichern?' : 'Wirklich anlegen?'}
+            cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-medium hover:bg-primary-400 border border-primary-500"
+            busy={busy}
+            onConfirm={async () => {
+              setBusy(true); setError('')
+              const r = await apiAdmin<{ ok: boolean; message?: string }>('save_tournament', {
+                ...form,
+                id: tournament?.id,
+                fee_eur: Number(form.fee_eur) || 0,
+                max_entries: form.max_entries ? Number(form.max_entries) : null,
+                starts_at: form.starts_at ? `${form.starts_at}:00Z` : '',
+                registration_deadline: form.registration_deadline ? `${form.registration_deadline}:00Z` : null,
+              })
+              setBusy(false)
+              if (r.ok) onSaved(r.message ?? 'Gespeichert.')
+              else setError(r.message ?? 'Fehler')
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament: AdminTournament; onClose: () => void; onChanged: () => void }) {
+  const [entries, setEntries] = useState<AdminTournamentEntry[] | null>(null)
+  const [error, setError] = useState('')
+
+  const load = () => {
+    apiAdmin<{ ok: boolean; entries?: AdminTournamentEntry[]; message?: string }>('tournament_entries', { tournament_id: tournament.id })
+      .then((r) => {
+        if (r.ok && r.entries) setEntries(r.entries)
+        else setError(r.message ?? 'Fehler beim Laden.')
+      })
+      .catch(() => setError('Netzwerkfehler.'))
+  }
+  useEffect(load, [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500">Anmeldungen</p>
+        <h3 className="mt-2 ro-card-title truncate">{tournament.title}</h3>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        {entries === null ? (
+          <p className="mt-5 text-[14px] text-foreground-600">Wird geladen…</p>
+        ) : entries.length === 0 ? (
+          <p className="mt-5 text-[14px] text-foreground-600">Noch keine Anmeldungen.</p>
+        ) : (
+          <div className="mt-5 space-y-3">
+            {entries.map((e) => (
+              <div key={e.id} className="rounded-lg border border-foreground-950/15 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-foreground-950 truncate">{e.full_name}</p>
+                    <p className="text-[12px] text-foreground-500 truncate">{e.email}{e.phone ? ` · ${e.phone}` : ''}</p>
+                    {e.partner_name && <p className="text-[12px] text-foreground-600 mt-0.5">Partner: {e.partner_name}</p>}
+                    {e.note && <p className="text-[12px] text-foreground-600 mt-0.5">Notiz: {e.note}</p>}
+                  </div>
+                  <ConfirmButton
+                    label="Entfernen"
+                    confirmLabel="Wirklich entfernen?"
+                    cls="h-8 px-3 rounded-full border border-red-400/30 text-red-300 text-[12px] hover:border-red-400/60 shrink-0"
+                    onConfirm={async () => {
+                      const r = await apiAdmin<{ ok: boolean; message?: string }>('remove_entry', { id: e.id })
+                      if (r.ok) { load(); onChanged() }
+                      else setError(r.message ?? 'Fehler')
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Schließen</button>
         </div>
       </div>
     </div>
