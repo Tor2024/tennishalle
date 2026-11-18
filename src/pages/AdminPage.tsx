@@ -1160,7 +1160,7 @@ function PartnerModal({ partner, onClose, onSaved }: { partner: AdminPartner | n
 // ---------- content tab (news / promo / events / tournaments) ----------
 interface AdminPost { id: string; title: string; slug: string; lead: string | null; body: string | null; image_path: string | null; published: boolean; type: 'news' | 'promo'; promo_expires_at: string | null; published_at: string | null; icon: string | null; cta_label: string | null; cta_link: string | null }
 interface AdminEvent { id: string; kind: string; title: string; participants: string | null; starts_at: string; ends_at: string | null; description: string | null; is_published: boolean }
-interface AdminTournament { id: string; title: string; description: string | null; format: 'single' | 'double'; fee_cents: number; starts_at: string; registration_deadline: string | null; max_entries: number | null; status: 'announcement' | 'registration' | 'running' | 'finished'; is_published: boolean; image_path: string | null; entry_count: number }
+interface AdminTournament { id: string; title: string; description: string | null; format: 'single' | 'double'; fee_cents: number; starts_at: string; registration_deadline: string | null; max_entries: number | null; status: 'announcement' | 'registration' | 'running' | 'finished'; is_published: boolean; image_path: string | null; entry_count: number; block_court_id?: string | null }
 interface AdminTournamentEntry { id: string; full_name: string; email: string; phone: string | null; partner_name: string | null; note: string | null; created_at: string; paid: boolean; paid_at: string | null }
 const TOURNAMENT_STATUS = [
   { id: 'announcement', label: 'Angekündigt' },
@@ -1546,6 +1546,11 @@ function TournamentModal({ tournament, onClose, onSaved }: { tournament: AdminTo
     status: (tournament?.status ?? 'announcement') as AdminTournament['status'],
     is_published: tournament?.is_published ?? true,
   })
+  const [blockCourtId, setBlockCourtId] = useState<string>(tournament?.block_court_id ?? '')
+  const [courts, setCourts] = useState<AdminCourt[] | null>(null)
+  useEffect(() => {
+    apiAdmin<{ ok: boolean; courts?: AdminCourt[] }>('courts').then((r) => { if (r.ok && r.courts) setCourts(r.courts) }).catch(() => {})
+  }, [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
@@ -1598,6 +1603,13 @@ function TournamentModal({ tournament, onClose, onSaved }: { tournament: AdminTo
           <input type="checkbox" checked={form.is_published} onChange={(e) => set('is_published', e.target.checked)} className="accent-[var(--color-primary-500)]" />
           Veröffentlicht (sichtbar auf der Website)
         </label>
+        <label className="block mt-4">
+          <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Platz sperren <InfoHint text="Optional: dieser Platz ist am Turniertag den ganzen Tag für Buchungen gesperrt (Sperre «Turnier: <Titel>» im Kalender). Änderst du Platz oder Datum, wird die alte Sperre automatisch entfernt. Leer = keine Sperre — dann ggf. manuell über «Zeit sperren»." /></span>
+          <select value={blockCourtId} onChange={(e) => setBlockCourtId(e.target.value)} className={ADMIN_FIELD_CLS}>
+            <option value="">Kein Platz gesperrt</option>
+            {(courts ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Abbrechen</button>
           <ConfirmButton
@@ -1614,6 +1626,7 @@ function TournamentModal({ tournament, onClose, onSaved }: { tournament: AdminTo
                 max_entries: form.max_entries ? Number(form.max_entries) : null,
                 starts_at: form.starts_at ? `${form.starts_at}:00Z` : '',
                 registration_deadline: form.registration_deadline ? `${form.registration_deadline}:00Z` : null,
+                block_court_id: blockCourtId || null,
               })
               setBusy(false)
               if (r.ok) onSaved(r.message ?? 'Gespeichert.')

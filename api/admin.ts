@@ -601,29 +601,70 @@ async function saveTournament(body: Record<string, unknown>, user: SessionUser) 
   const maxEntries = Number.isFinite(maxEntriesRaw) && maxEntriesRaw > 0 ? Math.round(maxEntriesRaw) : null
   const imagePath = String(body.image_path ?? '').trim() || null
   const isPublished = body.is_published !== false
+  const blockCourtId = String(body.block_court_id ?? '').trim() || null
   const id = typeof body.id === 'string' && body.id ? body.id : null
 
+  // validate block court exists
+  if (blockCourtId) {
+    const c = await db().query(`select id from courts where id = $1`, [blockCourtId])
+    if (!c.rows.length) return json({ ok: false, code: 'bad_request', message: 'Unbekannter Platz.' }, 400)
+  }
+
   if (id) {
+    const prev = await db().query(`select block_court_id, starts_at from tournaments where id = $1`, [id])
     const r = await db().query(
       `update tournaments set title=$1, description=$2, format=$3, fee_cents=$4, starts_at=$5::timestamptz,
-        registration_deadline=$6::timestamptz, max_entries=$7, status=$8, image_path=$9, is_published=$10, updated_at=now()
-       where id=$11 returning id`,
-      [title, description, format, feeCents, startsAt, deadline, maxEntries, status, imagePath, isPublished, id],
+        registration_deadline=$6::timestamptz, max_entries=$7, status=$8, image_path=$9, is_published=$10, block_court_id=$11, updated_at=now()
+       where id=$12 returning id`,
+      [title, description, format, feeCents, startsAt, deadline, maxEntries, status, imagePath, isPublished, blockCourtId, id],
     )
     if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Turnier nicht gefunden.' }, 404)
-    return json({ ok: true, id: r.rows[0].id, message: 'Turnier gespeichert.' })
+    // drop the old tournament block (previous court/date), then create the new one
+    if (prev.rows.length && prev.rows[0].block_court_id) {
+      await removeTournamentBlock(String(prev.rows[0].block_court_id), String(prev.rows[0].starts_at))
+    }
+    let msg = 'Turnier gespeichert.'
+    if (blockCourtId) {
+      await addTournamentBlock(blockCourtId, startsAt, title, user)
+      msg = 'Turnier gespeichert. Platz wurde für den Turniertag gesperrt.'
+    }
+    return json({ ok: true, id: r.rows[0].id, message: msg })
   }
   const r = await db().query(
-    `insert into tournaments (id, title, description, format, fee_cents, starts_at, registration_deadline, max_entries, status, image_path, is_published, created_by)
-     values (gen_random_uuid(), $1, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9, $10, $11) returning id`,
-    [title, description, format, feeCents, startsAt, deadline, maxEntries, status, imagePath, isPublished, user.id],
+    `insert into tournaments (id, title, description, format, fee_cents, starts_at, registration_deadline, max_entries, status, image_path, is_published, block_court_id, created_by)
+     values (gen_random_uuid(), $1, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9, $10, $11, $12) returning id`,
+    [title, description, format, feeCents, startsAt, deadline, maxEntries, status, imagePath, isPublished, blockCourtId, user.id],
   )
-  return json({ ok: true, id: r.rows[0].id, message: 'Turnier angelegt.' })
+  const newId = String(r.rows[0].id)
+  if (blockCourtId) await addTournamentBlock(blockCourtId, startsAt, title, user)
+  return json({ ok: true, id: newId, message: blockCourtId ? 'Turnier angelegt. Platz wurde für den Turniertag gesperrt.' : 'Turnier angelegt.' })
+}
+
+function removeTournamentBlock(courtId: string, startsAt: string) {
+  return db().query(
+    `delete from court_blocks where reason like 'Turnier: %' and court_id = $1 and starts_at::date = ($2::timestamptz)::date`,
+    [courtId, startsAt],
+  )
+}
+
+/** Legt die Sperre für den ganzen Berliner Tag des Turnierbeginns an. */
+async function addTournamentBlock(courtId: string, startsAt: string, title: string, user: SessionUser) {
+  const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date(startsAt))
+  await db().query(
+    `insert into court_blocks (court_id, starts_at, ends_at, reason, created_by)
+     values ($1, $2::timestamptz, $3::timestamptz, $4, $5)`,
+    [courtId, `${dayKey}T00:00:00`, `${dayKey}T23:59:59`, `Turnier: ${title}`, user.id],
+  )
 }
 
 async function deleteTournament(body: Record<string, unknown>) {
   const id = typeof body.id === 'string' ? body.id : ''
   if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  // remove the tournament's court block(s) before the row goes (block_court_id would be nulled by FK otherwise)
+  const t = await db().query(`select block_court_id, starts_at from tournaments where id = $1`, [id])
+  if (t.rows.length && t.rows[0].block_court_id) {
+    await removeTournamentBlock(String(t.rows[0].block_court_id), String(t.rows[0].starts_at))
+  }
   await db().query(`delete from tournaments where id = $1`, [id])
   return json({ ok: true, message: 'Turnier geloescht.' })
 }
