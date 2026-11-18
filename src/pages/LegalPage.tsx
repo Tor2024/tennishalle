@@ -12,7 +12,7 @@ const LABELS: Record<string, string> = {
   cookies: 'Cookies',
 }
 
-interface LegalPage { id: string; title: string; body: string; updated_at: string }
+interface LegalPage { id: string; title: string; body: string | null; pdf_path: string | null; updated_at: string }
 
 export function LegalPageView() {
   const { page } = useParams()
@@ -67,7 +67,25 @@ export function LegalPageView() {
           )}
           <div className="mt-10 ro-card p-6 md:p-10">
             {doc ? (
-              <div className="ro-body text-foreground-800 whitespace-pre-line">{doc.body}</div>
+              <>
+                {doc.body ? (
+                  <div className="ro-body text-foreground-800 whitespace-pre-line">{doc.body}</div>
+                ) : (
+                  <p className="ro-body text-foreground-600">
+                    Dieses Dokument liegt als PDF vor.
+                  </p>
+                )}
+                {doc.pdf_path && (
+                  <a
+                    href={doc.pdf_path}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-6 inline-flex items-center gap-2.5 rounded-full bg-primary-500 px-5 py-2.5 text-[13px] font-semibold text-primary-950 transition-colors hover:bg-primary-400"
+                  >
+                    <i className="ri-file-pdf-2-line text-base" /> PDF öffnen <i className="ri-arrow-right-up-line text-sm" />
+                  </a>
+                )}
+              </>
             ) : (
               <p className="ro-body text-foreground-600">Wird geladen …</p>
             )}

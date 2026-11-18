@@ -661,7 +661,7 @@ async function removeEntry(body: Record<string, unknown>) {
 
 // legal pages (agb/impressum/datenschutz/cookies) — read + edit (id fixed, no create/delete)
 async function legalList() {
-  const r = await db().query(`select id, title, body, updated_at from legal_pages order by id`)
+  const r = await db().query(`select id, title, body, pdf_path, updated_at from legal_pages order by id`)
   return json({ ok: true, pages: r.rows })
 }
 
@@ -671,8 +671,11 @@ async function saveLegal(body: Record<string, unknown>) {
     return json({ ok: false, code: 'bad_request', message: 'Unbekannte Seite.' }, 400)
   const title = String(body.title ?? '').trim()
   const text = String(body.body ?? '').trim()
-  if (!title || !text) return json({ ok: false, code: 'bad_request', message: 'Titel und Text fehlen.' }, 400)
-  await db().query(`update legal_pages set title=$1, body=$2, updated_at=now() where id=$3`, [title, text, id])
+  const pdfPath = String(body.pdf_path ?? '').trim() || null
+  if (!title) return json({ ok: false, code: 'bad_request', message: 'Titel fehlt.' }, 400)
+  if (!text && !pdfPath) return json({ ok: false, code: 'bad_request', message: 'Text oder PDF fehlt — mindestens eins ist nötig.' }, 400)
+  await db().query(`update legal_pages set title=$1, body=$2, pdf_path=$3, updated_at=now() where id=$4`, [title, text || null, pdfPath, id])
+  return json({ ok: true, message: 'Seite gespeichert.' })
   return json({ ok: true, message: 'Seite gespeichert.' })
 }
 
@@ -686,8 +689,9 @@ function b64ToBuf(b64: string): Buffer {
 }
 
 const EXT_MIME: Record<string, string> = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml', gif: 'image/gif',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml', gif: 'image/gif', pdf: 'application/pdf',
 }
+const PDF_MAX_BYTES = 8 * 1024 * 1024
 
 async function ghApi(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`https://api.github.com${path}`, {
@@ -706,9 +710,10 @@ async function uploadImage(body: Record<string, unknown>) {
   const dataB64 = String(body.data ?? '')
   const safe = filename.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
   const ext = safe.includes('.') ? safe.split('.').pop() ?? '' : ''
-  if (!safe || !EXT_MIME[ext]) return json({ ok: false, code: 'bad_request', message: 'Nur PNG, JPG, WEBP, SVG oder GIF erlaubt.' }, 400)
+  if (!safe || !EXT_MIME[ext]) return json({ ok: false, code: 'bad_request', message: 'Nur PNG, JPG, WEBP, SVG, GIF oder PDF erlaubt.' }, 400)
   const buf = b64ToBuf(dataB64)
-  if (!buf.length || buf.length > 2 * 1024 * 1024) return json({ ok: false, code: 'bad_request', message: 'Datei fehlt oder groesser als 2 MB.' }, 400)
+  const maxBytes = ext === 'pdf' ? PDF_MAX_BYTES : 2 * 1024 * 1024
+  if (!buf.length || buf.length > maxBytes) return json({ ok: false, code: 'bad_request', message: ext === 'pdf' ? 'Datei fehlt oder groesser als 8 MB.' : 'Datei fehlt oder groesser als 2 MB.' }, 400)
 
   const path = `${IMG_DIR}/${Date.now()}-${safe}`
   const content = buf.toString('base64')

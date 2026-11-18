@@ -184,7 +184,7 @@ async function tournamentCancel(body: Record<string, unknown>, req: Request): Pr
 
 /** Правовые страницы (agb/impressum/datenschutz/cookies). */
 async function legal(): Promise<Response> {
-  const r = await db().query(`select id, title, body, updated_at from legal_pages order by id`);
+  const r = await db().query(`select id, title, body, pdf_path, updated_at from legal_pages order by id`);
   return json({ ok: true, pages: r.rows });
 }
 

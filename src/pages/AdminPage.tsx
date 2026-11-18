@@ -1690,7 +1690,7 @@ function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament
 
 const LEGAL_LABELS: Record<string, string> = { agb: 'AGB', impressum: 'Impressum', datenschutz: 'Datenschutz', cookies: 'Cookies' }
 
-interface AdminLegal { id: string; title: string; body: string; updated_at: string }
+interface AdminLegal { id: string; title: string; body: string | null; pdf_path: string | null; updated_at: string }
 
 // --- Nachrichten: входящие сообщения с формы обратной связи (#kontakt) ---
 interface ContactMessage {
@@ -1854,7 +1854,15 @@ function LegalTab() {
                   <p className="mt-1 text-xs text-foreground-500">
                     Stand: {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/Berlin' })} · /legal/{p.id}
                   </p>
-                  <p className="mt-3 text-sm text-foreground-700 line-clamp-2">{p.body}</p>
+                  <p className="mt-3 text-sm text-foreground-700 line-clamp-2">{p.body ?? ''}</p>
+                  {p.pdf_path && (
+                    <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary-500">
+                      <i className="ri-file-pdf-2-line" /> PDF hinterlegt
+                    </p>
+                  )}
+                  {!p.body && !p.pdf_path && (
+                    <p className="mt-3 text-sm text-amber-500">Leer — Text oder PDF hinterlegen, sonst sieht der Gast eine leere Seite.</p>
+                  )}
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
@@ -1873,7 +1881,39 @@ function LegalTab() {
 
 function LegalModal({ page, onClose, onSaved, busy }: { page: AdminLegal; onClose: () => void; onSaved: (p: Record<string, unknown>) => void; busy: boolean }) {
   const [title, setTitle] = useState(page.title)
-  const [body, setBody] = useState(page.body)
+  const [body, setBody] = useState(page.body ?? '')
+  const [pdfPath, setPdfPath] = useState(page.pdf_path ?? '')
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return
+    setError('')
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Nur PDF-Dateien sind erlaubt.')
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError('PDF ist grösser als 8 MB.')
+      return
+    }
+    setUploading(true)
+    try {
+      const buf = await file.arrayBuffer()
+      let bin = ''
+      const bytes = new Uint8Array(buf)
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+      const r = await apiAdmin<{ ok: boolean; path?: string; message?: string }>('upload_image', { filename: file.name, data: `data:application/pdf;base64,${btoa(bin)}` })
+      if (r.ok && r.path) setPdfPath(r.path)
+      else setError(r.message ?? 'Upload fehlgeschlagen.')
+    } catch {
+      setError('Upload fehlgeschlagen.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const pdfName = pdfPath ? decodeURIComponent(pdfPath.split('/').pop() ?? '') : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background-950/60" onClick={onClose}>
@@ -1887,15 +1927,36 @@ function LegalModal({ page, onClose, onSaved, busy }: { page: AdminLegal; onClos
             <i className="ri-close-line" />
           </button>
         </div>
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={ADMIN_FIELD_CLS + ' mt-4'} placeholder="Text…" />
-        <div className="mt-5 flex justify-end gap-3">
+        <label className="block mt-4 text-xs font-medium text-foreground-600">
+          <span className="inline-flex items-center gap-1.5">Text <InfoHint text="Der Text erscheint direkt auf /legal/... . Leerzeile = neuer Absatz. Du kannst nur Text, nur PDF oder beides nutzen — mit beidem steht der Text oben und darunter erscheint der PDF-Button." /></span>
+        </label>
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={ADMIN_FIELD_CLS + ' mt-1.5'} placeholder="Text… (optional, wenn PDF hinterlegt ist)" />
+        <div className="mt-5">
+          <p className="text-xs font-medium text-foreground-600 inline-flex items-center gap-1.5">
+            PDF <InfoHint text="PDF wird auf den Server geladen und auf der Seite als «PDF öffnen»-Button angezeigt (öffnet in neuem Tab). PNG, JPG, WEBP, SVG, GIF: bis 150 KB Original, größere werden auf 520 px (WebP) skaliert. PDF: max. 8 MB, wird 1:1 übernommen." />
+          </p>
+          {pdfPath ? (
+            <div className="mt-2 flex items-center gap-3 rounded-md border border-primary-500/40 bg-primary-500/10 px-4 py-3">
+              <i className="ri-file-pdf-2-line text-primary-500 text-lg" />
+              <span className="text-[13px] text-foreground-800 truncate flex-1">{pdfName}</span>
+              <button onClick={() => setPdfPath('')} className="text-[13px] font-medium text-secondary-300 hover:underline cursor-pointer">Entfernen</button>
+            </div>
+          ) : (
+            <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-background-400 px-4 h-10 text-[13px] font-medium hover:border-primary-500 transition-colors">
+              <i className="ri-upload-2-line" /> {uploading ? 'Wird hochgeladen …' : 'PDF hochladen'}
+              <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+            </label>
+          )}
+          {error && <p className="mt-2 text-[13px] text-secondary-300">{error}</p>}
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
           <button onClick={onClose} className="h-10 px-5 rounded-full border border-background-400 text-[13px] font-medium cursor-pointer hover:border-primary-500 transition-colors">
             Abbrechen
           </button>
           <ConfirmButton
             label="Speichern"
             confirmLabel="Wirklich speichern?"
-            onConfirm={() => onSaved({ id: page.id, updated_at: page.updated_at, title, body })}
+            onConfirm={() => onSaved({ id: page.id, updated_at: page.updated_at, title, body, pdf_path: pdfPath || null })}
             cls="h-10 px-5 rounded-full bg-primary-500 text-background-50 text-[13px] font-semibold hover:bg-primary-400"
             busy={busy}
           />
