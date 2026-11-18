@@ -225,7 +225,7 @@ async function dayData(body: Record<string, unknown>) {
   const from = typeof body.from === 'string' ? body.from : ''
   const to = typeof body.to === 'string' ? body.to : ''
   if (!isTs(from) || !isTs(to)) return json({ ok: false, code: 'bad_request', message: 'Ungueltiger Zeitraum.' }, 400)
-  const [reservations, blocks] = await Promise.all([
+  const [reservations, blocks, tournaments] = await Promise.all([
     db().query(
       `select r.*, c.name as court_name, c.court_number from reservations r join courts c on c.id = r.court_id
        where r.status <> 'cancelled' and r.end_at > $1 and r.start_at < $2 order by r.start_at`,
@@ -236,8 +236,35 @@ async function dayData(body: Record<string, unknown>) {
        where b.ends_at > $1 and b.starts_at < $2 order by b.starts_at`,
       [from, to],
     ),
+    db().query(
+      `select t.id, t.title, t.format, t.fee_cents, t.status, t.max_entries, t.starts_at, t.block_court_id
+       from tournaments t
+       where t.block_court_id is not null
+         and (t.starts_at at time zone 'Europe/Berlin')::date = ($1::timestamptz at time zone 'Europe/Berlin')::date`,
+      [from],
+    ),
   ])
-  return json({ ok: true, reservations: reservations.rows, blocks: blocks.rows })
+  const tRows = tournaments.rows as Array<Record<string, unknown> & { id: string }>
+  let tEntries: Record<string, unknown[]> = {}
+  if (tRows.length) {
+    const er = await db().query(
+      `select e.id, e.tournament_id, e.partner_name, e.note, e.paid, e.paid_at, e.created_at, u.full_name, u.email, u.phone
+       from tournament_entries e join app_users u on u.id = e.user_id
+       where e.tournament_id = any($1::uuid[]) order by e.created_at`,
+      [tRows.map((t) => t.id)],
+    )
+    tEntries = {}
+    for (const e of er.rows as Array<Record<string, unknown> & { tournament_id: string }>) {
+      if (!tEntries[e.tournament_id]) tEntries[e.tournament_id] = []
+      tEntries[e.tournament_id].push(e)
+    }
+  }
+  return json({
+    ok: true,
+    reservations: reservations.rows,
+    blocks: blocks.rows,
+    tournaments: tRows.map((t) => ({ ...t, entries: tEntries[t.id] ?? [] })),
+  })
 }
 
 /* ---------- courts CRUD (admin) ---------- */

@@ -110,6 +110,18 @@ interface AdminBlock {
   court_name: string
 }
 
+interface AdminCalTournament {
+  id: string
+  title: string
+  format: 'single' | 'double'
+  fee_cents: number
+  status: 'announcement' | 'registration' | 'running' | 'finished'
+  max_entries: number | null
+  starts_at: string
+  block_court_id: string | null
+  entries: AdminTournamentEntry[]
+}
+
 /* ---------- berlin time helpers ---------- */
 
 function berlinToday(): string {
@@ -2191,16 +2203,17 @@ const PX_PER_MIN = 1.2
 
 function CalendarTab({ catalog }: { catalog: Catalog }) {
   const [date, setDate] = useState(berlinToday())
-  const [data, setData] = useState<{ reservations: AdminReservation[]; blocks: AdminBlock[] } | null>(null)
+  const [data, setData] = useState<{ reservations: AdminReservation[]; blocks: AdminBlock[]; tournaments?: AdminCalTournament[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<AdminReservation | null>(null)
   const [blockModal, setBlockModal] = useState(false)
+  const [tModal, setTModal] = useState<AdminCalTournament | null>(null)
 
   function load(dk: string) {
     setLoading(true)
-    apiAdmin<{ ok: boolean; reservations: AdminReservation[]; blocks: AdminBlock[] }>('day_data', { from: `${dk}T00:00:00Z`, to: `${dk}T23:59:59Z` })
-      .then((r) => setData({ reservations: r.reservations ?? [], blocks: r.blocks ?? [] }))
-      .catch(() => setData({ reservations: [], blocks: [] }))
+    apiAdmin<{ ok: boolean; reservations: AdminReservation[]; blocks: AdminBlock[]; tournaments?: AdminCalTournament[] }>('day_data', { from: `${dk}T00:00:00Z`, to: `${dk}T23:59:59Z` })
+      .then((r) => setData({ reservations: r.reservations ?? [], blocks: r.blocks ?? [], tournaments: r.tournaments ?? [] }))
+      .catch(() => setData({ reservations: [], blocks: [], tournaments: [] }))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load(date) }, [date])
@@ -2245,15 +2258,42 @@ function CalendarTab({ catalog }: { catalog: Catalog }) {
                 {(data?.blocks ?? []).filter((b) => b.court_id === c.id).map((b) => {
                   const s = Math.max(toMin(berlinTime(b.starts_at)), CAL_START)
                   const e = Math.min(toMin(berlinTime(b.ends_at)), CAL_END)
+                  const t = (data?.tournaments ?? []).find((tt) => tt.block_court_id === b.id) ?? null
+                  const isTournament = !!t || (b.reason || '').startsWith('Turnier: ')
                   return (
-                    <div key={b.id} className="absolute inset-x-1 rounded-md bg-background-400/50 border border-dashed border-foreground-400 p-1.5 text-[11px] text-foreground-800" style={{ top: (s - CAL_START) * PX_PER_MIN, height: Math.max((e - s) * PX_PER_MIN, 18) }}>
-                      <span className="font-semibold">{b.reason || 'Gesperrt'}</span>
-                      <button
-                        onClick={async () => { await apiAdmin('delete_block', { id: b.id }); load(date) }}
-                        className="block mt-1 text-[10px] underline underline-offset-2 cursor-pointer hover:text-red-300"
-                      >
-                        Entfernen
-                      </button>
+                    <div key={b.id} className={`absolute inset-x-1 rounded-md border border-dashed p-1.5 text-[11px] text-foreground-800 ${t ? 'border-primary-500/60 bg-primary-500/10' : 'bg-background-400/50 border-foreground-400'}`} style={{ top: (s - CAL_START) * PX_PER_MIN, height: Math.max((e - s) * PX_PER_MIN, 18) }}>
+                      {t ? (
+                        <button
+                          onClick={() => setTModal(t)}
+                          className="block w-full text-left cursor-pointer"
+                          title="Turnier: Teilnehmer anzeigen"
+                        >
+                          <span className="font-semibold flex items-center gap-1"><i className="ri-trophy-line" />{(b.reason || '').replace(/^Turnier: /, '')}</span>
+                          <span className={`block mt-0.5 text-[10px] ${t.entries.some((x) => x.paid) ? 'text-primary-400' : 'text-foreground-600'}`}>
+                            {t.entries.filter((x) => x.paid).length}/{t.entries.length} bezahlt{t.max_entries ? ` · ${t.entries.length}/${t.max_entries}` : ''}
+                          </span>
+                          {t.entries.length > 0 && (
+                            <span className="block mt-0.5 text-[10px] text-foreground-600 truncate">
+                              {t.entries.map((x) => `${x.full_name}${x.paid ? ' ✓' : ' ·'}`).join(', ')}
+                            </span>
+                          )}
+                        </button>
+                      ) : (
+                        <>
+                          <span className="font-semibold">{b.reason || 'Gesperrt'}</span>
+                          {!isTournament && (
+                            <button
+                              onClick={async () => { await apiAdmin('delete_block', { id: b.id }); load(date) }}
+                              className="block mt-1 text-[10px] underline underline-offset-2 cursor-pointer hover:text-red-300"
+                            >
+                              Entfernen
+                            </button>
+                          )}
+                          {isTournament && (
+                            <span className="block mt-1 text-[10px] text-foreground-600">Turnier-Block — verwaltet im Turnier</span>
+                          )}
+                        </>
+                      )}
                     </div>
                   )
                 })}
@@ -2268,6 +2308,7 @@ function CalendarTab({ catalog }: { catalog: Catalog }) {
                       style={{ top: (s - CAL_START) * PX_PER_MIN, height: Math.max((e - s) * PX_PER_MIN, 18) }}
                     >
                       <span className="font-semibold">{r.customer_name}</span>
+                      {r.paid && <i className="ri-checkbox-circle-fill text-primary-500" title="Bezahlt" />}
                       <span className="ml-1 tabular-nums opacity-80">{berlinTime(r.start_at)}–{berlinTime(r.end_at)}</span>
                     </button>
                   )
@@ -2283,10 +2324,79 @@ function CalendarTab({ catalog }: { catalog: Catalog }) {
           <span key={s} className="inline-flex items-center gap-1.5"><StatusChip status={s} /></span>
         ))}
         <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border border-dashed border-foreground-400 text-foreground-700">Gesperrt</span>
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border border-primary-500/60 text-primary-500"><i className="ri-trophy-line" />Turnier</span>
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full text-foreground-700"><i className="ri-checkbox-circle-fill text-primary-500" />Bezahlt</span>
       </div>
 
       {detail && <DetailModal r={detail} onClose={() => setDetail(null)} onPaidChange={() => load(date)} />}
       {blockModal && <BlockModal courts={courts} defaultDate={date} onClose={() => setBlockModal(false)} onSaved={() => load(date)} />}
+      {tModal && <CalendarTournamentModal t={tModal} onClose={() => setTModal(null)} onChanged={() => load(date)} />}
+    </div>
+  )
+}
+
+/* Модалка турнира из календаря: список участников + переключатель оплаты. */
+function CalendarTournamentModal({ t, onClose, onChanged }: { t: AdminCalTournament; onClose: () => void; onChanged: () => void }) {
+  const [entries, setEntries] = useState<AdminTournamentEntry[]>(t.entries)
+  const [error, setError] = useState('')
+
+  const reload = () => {
+    apiAdmin<{ ok: boolean; entries?: AdminTournamentEntry[]; message?: string }>('tournament_entries', { tournament_id: t.id })
+      .then((r) => { if (r.ok && r.entries) setEntries(r.entries); else setError(r.message ?? 'Fehler beim Laden.') })
+      .catch(() => setError('Netzwerkfehler.'))
+  }
+  useEffect(reload, [])
+
+  const paidCount = entries.filter((e) => e.paid).length
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
+      <div className="ro-card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <p className="ro-eyebrow text-primary-500"><i className="ri-trophy-line" /> Turnierteilnehmer</p>
+        <h3 className="mt-2 ro-card-title truncate">{t.title}</h3>
+        <p className="mt-2 text-[13px] text-foreground-600">
+          {paidCount}/{entries.length} bezahlt{t.fee_cents > 0 ? ` · ${((paidCount * t.fee_cents) / 100).toFixed(2).replace('.', ',')} € eingenommen` : ''}
+          <InfoHint text="Bezahlt wird vor Ort im Verein. Markiere einen Teilnehmer nach dem Zahlungseingang mit dem Schalter „Bezahlt“." />
+        </p>
+        {error && <p className="mt-4 rounded-md border border-red-400/40 bg-red-400/10 px-3 py-2 text-[13px] text-red-300">{error}</p>}
+        {entries.length === 0 ? (
+          <p className="mt-5 text-[14px] text-foreground-600">Noch keine Anmeldungen.</p>
+        ) : (
+          <div className="mt-5 space-y-3">
+            {entries.map((e) => (
+              <div key={e.id} className="rounded-lg border border-foreground-950/15 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-foreground-950 truncate">{e.full_name}</p>
+                    <p className="text-[12px] text-foreground-500 truncate">{e.email}{e.phone ? ` · ${e.phone}` : ''}</p>
+                    {e.partner_name && <p className="text-[12px] text-foreground-600 mt-0.5">Partner: {e.partner_name}</p>}
+                    {e.note && <p className="text-[12px] text-foreground-600 mt-0.5">Notiz: {e.note}</p>}
+                  </div>
+                  <div className="shrink-0">
+                    {t.fee_cents > 0 ? (
+                      <button
+                        onClick={async () => {
+                          const r = await apiAdmin<{ ok: boolean; message?: string }>('mark_entry_paid', { id: e.id, paid: !e.paid })
+                          if (r.ok) { reload(); onChanged() }
+                          else setError(r.message ?? 'Fehler')
+                        }}
+                        className={`h-8 px-3 rounded-full border text-[12px] cursor-pointer ${e.paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-500 font-semibold' : 'border-foreground-950/20 text-foreground-600 hover:border-primary-500/60'}`}
+                      >
+                        <i className={e.paid ? 'ri-checkbox-circle-line' : 'ri-price-tag-line'} />{e.paid ? 'Bezahlt' : 'Offen'}
+                      </button>
+                    ) : (
+                      <span className="text-[12px] text-foreground-600">keine Gebühr</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-semibold cursor-pointer hover:border-primary-500/60">Schließen</button>
+        </div>
+      </div>
     </div>
   )
 }
