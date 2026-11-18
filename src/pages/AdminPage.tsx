@@ -2258,7 +2258,7 @@ function CalendarTab({ catalog }: { catalog: Catalog }) {
                 {(data?.blocks ?? []).filter((b) => b.court_id === c.id).map((b) => {
                   const s = Math.max(toMin(berlinTime(b.starts_at)), CAL_START)
                   const e = Math.min(toMin(berlinTime(b.ends_at)), CAL_END)
-                  const t = (data?.tournaments ?? []).find((tt) => tt.block_court_id === b.id) ?? null
+                  const t = (data?.tournaments ?? []).find((tt) => tt.block_court_id === b.court_id) ?? null
                   const isTournament = !!t || (b.reason || '').startsWith('Turnier: ')
                   return (
                     <div key={b.id} className={`absolute inset-x-1 rounded-md border border-dashed p-1.5 text-[11px] text-foreground-800 ${t ? 'border-primary-500/60 bg-primary-500/10' : 'bg-background-400/50 border-foreground-400'}`} style={{ top: (s - CAL_START) * PX_PER_MIN, height: Math.max((e - s) * PX_PER_MIN, 18) }}>
