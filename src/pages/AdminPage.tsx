@@ -227,7 +227,7 @@ function PaidConfirmModal({ name, amount, newPaid, busy, onConfirm, onClose }: {
         </p>
         <div className="mt-6 flex justify-end gap-2.5">
           <button onClick={onClose} disabled={busy} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer disabled:opacity-50">Abbrechen</button>
-          <button onClick={onConfirm} disabled={busy} className={`h-10 px-5 rounded-full text-[13px] font-semibold cursor-pointer disabled:opacity-50 ${newPaid ? 'bg-primary-500 text-primary-950 hover:bg-primary-400' : 'border border-red-400/40 text-red-300 hover:border-red-400/60'}`}>
+          <button onClick={onConfirm} disabled={busy} className={`h-10 px-5 rounded-full text-[13px] font-semibold cursor-pointer disabled:opacity-50 ${newPaid ? 'bg-primary-500 text-background-50 hover:bg-primary-400' : 'border border-red-400/40 text-red-300 hover:border-red-400/60'}`}>
             {newPaid ? 'Bezahlt markieren' : 'Als offen setzen'}
           </button>
         </div>
