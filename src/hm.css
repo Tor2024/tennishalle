@@ -613,9 +613,38 @@
   .hm-news-grid3 > .hm-news-mini:nth-child(-n+2) .hm-mini-lead { font-size: 14.5px; -webkit-line-clamp: 3; }
 }
 .hm-news-mini {
-  display: flex; flex-direction: column; overflow: hidden;
+  position: relative;
+  display: flex; flex-direction: column;
   border-radius: 16px; border: 1px solid var(--hm-line);
-  background: color-mix(in oklab, var(--color-foreground-950) 3%, transparent);
+  background:
+    radial-gradient(130% 100% at 0% 100%, color-mix(in oklab, var(--hm-lime) 5%, transparent), transparent 55%),
+    color-mix(in oklab, var(--color-foreground-950) 3%, transparent);
+  transition: transform .2s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.hm-news-mini::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 17px;
+  padding: 1px;
+  background: conic-gradient(from var(--pa), transparent 0deg, transparent 250deg, color-mix(in oklab, var(--hm-lime) 85%, transparent) 300deg, color-mix(in oklab, var(--hm-lime) 20%, transparent) 340deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box exclude, linear-gradient(#fff 0 0);
+  animation: pa-rot 8s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+/* phase offset per card so rotation is not synchronized */
+.hm-news-mini:nth-child(2n)::before { animation-delay: -2.7s; }
+.hm-news-mini:nth-child(3n)::before { animation-delay: -5.3s; }
+.hm-news-mini:nth-child(5n)::before { animation-delay: -6.8s; }
+.hm-news-mini:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--hm-lime) 45%, transparent);
+  box-shadow:
+    0 0 22px -4px color-mix(in oklab, var(--hm-lime) 32%, transparent),
+    0 14px 30px -12px rgba(0, 0, 0, 0.6);
 }
 .hm-mini-media { position: relative; padding: 0; border: 0; background: none; cursor: pointer; display: block; height: 150px; overflow: hidden; border-radius: 16px 16px 0 0; }
 .hm-mini-img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -938,7 +967,8 @@
 .hm-visitenkarte-domain { font-size: 11.5px; color: var(--color-foreground-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hm-visitenkarte-foot .ri-arrow-right-up-line { color: var(--hm-lime); }
 @media (prefers-reduced-motion: reduce) {
-  .hm-visitenkarte::before { animation: none; background: linear-gradient(120deg, transparent 30%, color-mix(in oklab, var(--hm-lime) 55%, transparent) 50%, transparent 70%); }
+  .hm-visitenkarte::before,
+  .hm-news-mini::before { animation: none; background: linear-gradient(120deg, transparent 30%, color-mix(in oklab, var(--hm-lime) 55%, transparent) 50%, transparent 70%); }
 }
 a.hm-visitenkarte { color: inherit; text-decoration: none; }
 
