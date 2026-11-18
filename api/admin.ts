@@ -621,7 +621,7 @@ async function saveTournament(body: Record<string, unknown>, user: SessionUser) 
     if (!r.rows.length) return json({ ok: false, code: 'not_found', message: 'Turnier nicht gefunden.' }, 404)
     // drop the old tournament block (previous court/date), then create the new one
     if (prev.rows.length && prev.rows[0].block_court_id) {
-      await removeTournamentBlock(String(prev.rows[0].block_court_id), String(prev.rows[0].starts_at))
+      await removeTournamentBlock(String(prev.rows[0].block_court_id), new Date(prev.rows[0].starts_at).toISOString())
     }
     let msg = 'Turnier gespeichert.'
     if (blockCourtId) {
@@ -663,7 +663,7 @@ async function deleteTournament(body: Record<string, unknown>) {
   // remove the tournament's court block(s) before the row goes (block_court_id would be nulled by FK otherwise)
   const t = await db().query(`select block_court_id, starts_at from tournaments where id = $1`, [id])
   if (t.rows.length && t.rows[0].block_court_id) {
-    await removeTournamentBlock(String(t.rows[0].block_court_id), String(t.rows[0].starts_at))
+    await removeTournamentBlock(String(t.rows[0].block_court_id), new Date(t.rows[0].starts_at).toISOString())
   }
   await db().query(`delete from tournaments where id = $1`, [id])
   return json({ ok: true, message: 'Turnier geloescht.' })
