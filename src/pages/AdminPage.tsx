@@ -97,6 +97,8 @@ interface AdminReservation {
   price_changed_after?: string | null
   price_before_change?: number | null
   court_number: number | null
+  paid?: boolean
+  paid_at?: string | null
 }
 
 interface AdminBlock {
@@ -201,7 +203,18 @@ function StatusChip({ status }: { status: string }) {
 
 /* ---------- detail modal (mf) ---------- */
 
-function DetailModal({ r, onClose }: { r: AdminReservation; onClose: () => void }) {
+function DetailModal({ r, onClose, onPaidChange }: { r: AdminReservation; onClose: () => void; onPaidChange?: () => void }) {
+  const [paid, setPaid] = useState(!!r.paid)
+  const [paidBusy, setPaidBusy] = useState(false)
+  async function togglePaid() {
+    setPaidBusy(true)
+    const res = await apiAdmin<{ ok: boolean; message?: string }>('mark_booking_paid', { id: r.id, paid: !paid })
+    setPaidBusy(false)
+    if (res.ok) {
+      setPaid(!paid)
+      onPaidChange?.()
+    }
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-background-950/60" onClick={onClose} />
@@ -216,7 +229,16 @@ function DetailModal({ r, onClose }: { r: AdminReservation; onClose: () => void 
           </button>
         </div>
         <div className="mt-5 flex flex-col gap-2 text-sm">
-          <StatusChip status={r.status} />
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-foreground-600">Zahlung<InfoHint text="Bezahlt wird vor Ort im Verein. Markiere die Buchung nach dem Zahlungseingang — der Status bleibt erhalten." /></span>
+            <button onClick={togglePaid} disabled={paidBusy} className={`h-8 px-3 rounded-full text-[12.5px] font-medium cursor-pointer disabled:opacity-50 flex items-center gap-1.5 border transition-colors ${paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-600' : 'border-foreground-950/15 text-foreground-700 hover:border-primary-500/60'}`}>
+              <i className={paid ? 'ri-checkbox-circle-line' : 'ri-price-tag-line'} />{paid ? 'Bezahlt' : 'Offen'}
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-foreground-600">Status</span>
+            <StatusChip status={r.status} />
+          </div>
           <div className="flex justify-between gap-3"><dt className="text-foreground-600">Wann</dt><dd className="tabular-nums">{berlinDateKey(r.start_at)} · {berlinTime(r.start_at)} – {berlinTime(r.end_at)}</dd></div>
           <div className="flex justify-between gap-3"><dt className="text-foreground-600">Dauer</dt><dd className="tabular-nums">{r.duration_minutes} min</dd></div>
           <div className="flex justify-between gap-3"><dt className="text-foreground-600">Preis</dt><dd className="tabular-nums">{formatPrice(r.fee_cents / 100)}</dd></div>
@@ -2250,7 +2272,7 @@ function CalendarTab({ catalog }: { catalog: Catalog }) {
         <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border border-dashed border-foreground-400 text-foreground-700">Gesperrt</span>
       </div>
 
-      {detail && <DetailModal r={detail} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal r={detail} onClose={() => setDetail(null)} onPaidChange={() => load(date)} />}
       {blockModal && <BlockModal courts={courts} defaultDate={date} onClose={() => setBlockModal(false)} onSaved={() => load(date)} />}
     </div>
   )
@@ -2341,7 +2363,7 @@ function BookingsTab({ catalog }: { catalog: Catalog }) {
         </table>
       </div>
 
-      {detail && <DetailModal r={detail} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal r={detail} onClose={() => setDetail(null)} onPaidChange={load} />}
       {newModal && <NewBookingModal courts={catalog.courts} onClose={() => setNewModal(false)} onSaved={load} />}
     </div>
   )

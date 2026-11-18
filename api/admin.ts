@@ -652,6 +652,18 @@ async function markEntryPaid(body: Record<string, unknown>) {
   return json({ ok: true, message: paid ? 'Als bezahlt markiert.' : 'Bezahlt-Status entfernt.' })
 }
 
+async function markBookingPaid(body: Record<string, unknown>) {
+  const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
+  const paid = body.paid !== false
+  const r = await db().query(
+    `update reservations set paid = $1, paid_at = case when $1 then now() else null end where id = $2`,
+    [paid, id],
+  )
+  if (!r.rowCount) return json({ ok: false, code: 'not_found', message: 'Buchung nicht gefunden.' }, 404)
+  return json({ ok: true, message: paid ? 'Als bezahlt markiert.' : 'Bezahlt-Status entfernt.' })
+}
+
 async function removeEntry(body: Record<string, unknown>) {
   const id = typeof body.id === 'string' ? body.id : ''
   if (!id) return json({ ok: false, code: 'bad_request', message: 'Fehlende ID.' }, 400)
@@ -790,6 +802,7 @@ export async function POST(req: Request): Promise<Response> {
       case 'tournament_entries': return await tournamentEntries(body)
       case 'remove_entry': return await removeEntry(body)
       case 'mark_entry_paid': return await markEntryPaid(body)
+      case 'mark_booking_paid': return await markBookingPaid(body)
       case 'legal': return await legalList()
       case 'save_legal': return await saveLegal(body)
       case 'hours': return await hoursList(body)
