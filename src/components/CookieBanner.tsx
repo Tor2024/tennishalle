@@ -49,11 +49,11 @@ export function CookieBanner() {
         <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.06] p-4 text-[13px] text-foreground-700 space-y-2.5">
           <p className="flex items-start gap-2">
             <i className="ri-shield-check-line text-primary-500 mt-0.5" />
-            <span><strong className="text-foreground-100">Notwendig (immer aktiv):</strong> Sitzung (Anmeldung, Admin-Bereich) und dieser Einwilligungshinweis. Ohne sie funktioniert die Seite nicht.</span>
+            <span><strong className="text-foreground-950">Notwendig (immer aktiv):</strong> Sitzung (Anmeldung, Admin-Bereich) und dieser Einwilligungshinweis. Ohne sie funktioniert die Seite nicht.</span>
           </p>
           <p className="flex items-start gap-2">
             <i className="ri-close-circle-line text-foreground-500 mt-0.5" />
-            <span><strong className="text-foreground-100">Statistik &amp; Marketing:</strong> nicht im Einsatz — es existiert kein entsprechender Code auf dieser Seite.</span>
+            <span><strong className="text-foreground-950">Statistik &amp; Marketing:</strong> nicht im Einsatz — es existiert kein entsprechender Code auf dieser Seite.</span>
           </p>
           <p className="flex items-start gap-2">
             <i className="ri-article-line text-foreground-500 mt-0.5" />
