@@ -2650,6 +2650,7 @@ export function AdminPage() {
   const [user, setUser] = useState<AppUser | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('overview')
+  const [unread, setUnread] = useState(0)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -2665,6 +2666,18 @@ export function AdminPage() {
       })
       .catch(() => setChecking(false))
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+    let alive = true
+    const fetchUnread = () =>
+      apiAdmin<{ ok: boolean; count?: number }>('unread_count')
+        .then((r) => { if (alive && r.ok) setUnread(r.count ?? 0) })
+        .catch(() => {})
+    fetchUnread()
+    const iv = window.setInterval(fetchUnread, 30000)
+    return () => { alive = false; window.clearInterval(iv) }
+  }, [user, tab])
 
   async function signOut() {
     await apiAuth('signout', {})
@@ -2713,6 +2726,11 @@ export function AdminPage() {
             >
               <i className={`${t.icon} text-base`} />
               {t.label}
+              {t.id === 'messages' && unread > 0 && (
+                <span className="ml-auto min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-primary-500 text-background-50 text-[11px] font-bold tabular-nums">
+                  {unread}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -2748,6 +2766,11 @@ export function AdminPage() {
             >
               <i className={t.icon} />
               {t.label}
+              {t.id === 'messages' && unread > 0 && (
+                <span className="min-w-4.5 h-4.5 px-1 inline-flex items-center justify-center rounded-full bg-primary-500 text-background-50 text-[10px] font-bold tabular-nums">
+                  {unread}
+                </span>
+              )}
             </button>
           ))}
         </nav>

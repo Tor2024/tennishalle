@@ -876,6 +876,7 @@ export async function POST(req: Request): Promise<Response> {
       case 'hours': return await hoursList(body)
       case 'save_hours': return await saveHours(body)
       case 'messages': return await messagesList(body)
+      case 'unread_count': return await unread_count()
       case 'handle_message': return await handle_message(body)
       case 'delete_message': return await deleteMessage(body)
       default: return json({ ok: false, code: 'bad_action', message: 'Unbekannte Aktion.' }, 400)
@@ -894,6 +895,10 @@ async function messagesList(body: any): Promise<Response> {
     [limit],
   )
   return json({ ok: true, messages: r.rows })
+}
+async function unread_count(): Promise<Response> {
+  const r = await db().query<{ cnt: string }>(`select count(*) as cnt from contact_messages where handled = false`)
+  return json({ ok: true, count: Number(r.rows[0].cnt) })
 }
 async function handle_message(body: any): Promise<Response> {
   if (!body.id) return json({ ok: false, code: 'bad_request', message: 'id fehlt.' }, 400)
