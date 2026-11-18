@@ -113,7 +113,7 @@ export function Footer() {
       </div>
       {/* secret admin entrance — invisible link over the wordmark */}
       <div className="relative">
-        <p aria-hidden="true" className="mt-10 md:mt-14 px-2 font-wordmark footer-wordmark text-background-200 select-none text-center">
+        <p className="mt-10 md:mt-14 px-2 font-wordmark footer-wordmark text-background-200 select-none text-center" style={{ color: 'color-mix(in oklab, var(--color-background-200) 55%, transparent)' }}>
           TENNISHALLE
         </p>
         <Link to="/admin" aria-label="Admin" className="absolute inset-x-0 -top-4 bottom-0 opacity-0" />

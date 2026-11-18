@@ -271,7 +271,7 @@ export function Belegungsplan() {
                 <span className="hm-key hm-key-busy" /> Belegt
               </span>
             </div>
-            <div className="hm-view-switch" role="tablist">
+            <div className="hm-view-switch" role="group" aria-label="Ansicht wählen">
               <button
                 type="button"
                 className={`hm-view-btn ${viewMode === 'cards' ? 'is-active' : ''}`}
