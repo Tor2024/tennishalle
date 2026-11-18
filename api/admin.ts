@@ -674,7 +674,7 @@ async function saveLegal(body: Record<string, unknown>) {
   const pdfPath = String(body.pdf_path ?? '').trim() || null
   if (!title) return json({ ok: false, code: 'bad_request', message: 'Titel fehlt.' }, 400)
   if (!text && !pdfPath) return json({ ok: false, code: 'bad_request', message: 'Text oder PDF fehlt — mindestens eins ist nötig.' }, 400)
-  await db().query(`update legal_pages set title=$1, body=$2, pdf_path=$3, updated_at=now() where id=$4`, [title, text || null, pdfPath, id])
+  await db().query(`update legal_pages set title=$1, body=$2, pdf_path=$3, updated_at=now() where id=$4`, [title, text, pdfPath, id])
   return json({ ok: true, message: 'Seite gespeichert.' })
   return json({ ok: true, message: 'Seite gespeichert.' })
 }
