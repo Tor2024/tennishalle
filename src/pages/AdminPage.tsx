@@ -1837,12 +1837,35 @@ function MessagesTab() {
   const fmt = (s: string) =>
     new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ }).format(new Date(s))
 
+  const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const openCount = messages.filter((m) => !m.handled).length
+  const doneCount = messages.filter((m) => m.handled).length
+  const visible = messages
+    .filter((m) => (filter === 'all' ? true : filter === 'open' ? !m.handled : m.handled))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  const filterCls = (active: boolean) =>
+    `h-8 px-3.5 rounded-full text-[12.5px] font-medium cursor-pointer border transition-colors inline-flex items-center gap-1.5 ${active ? 'bg-primary-500 text-background-50 border-primary-500' : 'border-foreground-950/15 text-foreground-700 hover:border-primary-500/60'}`
+
   return (
     <div>
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-heading font-light heading-tight md:text-[32px] text-foreground-950">Nachrichten</h1>
         <button type="button" onClick={load} className="h-10 px-4 inline-flex items-center gap-2 rounded-full border border-background-300 text-sm font-medium text-foreground-800 hover:bg-background-200 cursor-pointer">
           <i className="ri-refresh-line" aria-hidden="true" /> Aktualisieren
+        </button>
+      </div>
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={() => setFilter('all')} className={filterCls(filter === 'all')}>
+          Alle{messages.length > 0 ? ` (${messages.length})` : ''}
+        </button>
+        <button type="button" onClick={() => setFilter('open')} className={filterCls(filter === 'open')}>
+          Offen{openCount > 0 ? ` (${openCount})` : ''}
+          {filter !== 'open' && openCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-primary-500" aria-hidden="true" />}
+        </button>
+        <button type="button" onClick={() => setFilter('done')} className={filterCls(filter === 'done')}>
+          Erledigt{doneCount > 0 ? ` (${doneCount})` : ''}
         </button>
       </div>
       {error && (
@@ -1861,38 +1884,50 @@ function MessagesTab() {
           <i className="ri-mail-line text-3xl text-foreground-500" aria-hidden="true" />
           <p className="mt-3 text-sm text-foreground-600">Noch keine Nachrichten. Eingänge aus dem Kontaktformular erscheinen hier.</p>
         </div>
+      ) : visible.length === 0 ? (
+        <div className="mt-8 ro-card p-8 text-center">
+          <i className="ri-mail-line text-3xl text-foreground-500" aria-hidden="true" />
+          <p className="mt-3 text-sm text-foreground-600">Keine Nachrichten in dieser Ansicht.</p>
+        </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {messages.map((m) => (
-            <div key={m.id} className={`ro-card p-5 ${m.handled ? 'opacity-60' : ''}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-heading text-lg text-foreground-950">{m.name}</p>
-                  <p className="mt-0.5 text-xs text-foreground-600">
-                    <a href={`mailto:${m.email}`} className="hover:text-primary-500">{m.email}</a>
-                    {m.phone && <> · <a href={`tel:${m.phone}`} className="hover:text-primary-500">{m.phone}</a></>}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <span className={`font-label text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border ${m.handled ? 'bg-secondary-900/60 text-secondary-300 border-secondary-700' : 'bg-primary-500/20 text-primary-400 border-primary-500/50'}`}>
-                    {m.handled ? 'Erledigt' : 'Neu'}
-                  </span>
-                  <span className="text-xs text-foreground-500 tabular-nums">{fmt(m.created_at)}</span>
-                </div>
-              </div>
-              <p className="mt-3 text-sm text-foreground-800 whitespace-pre-line">{m.message}</p>
-              <div className="mt-4 flex items-center gap-3">
+        <div className="mt-5 rounded-xl border border-foreground-950/10 overflow-hidden bg-background-100/40">
+          {visible.map((m, i) => {
+            const isOpen = expanded === m.id
+            const preview = m.message.replace(/\s+/g, ' ').trim()
+            return (
+              <div key={m.id} className={`${i > 0 ? 'border-t border-foreground-950/10' : ''} ${m.handled ? 'bg-foreground-950/[0.03]' : ''}`}>
                 <button
                   type="button"
-                  onClick={() => toggleHandled(m.id)}
-                  className="text-[13px] font-semibold border border-background-300 hover:border-primary-500/60 hover:text-primary-500 px-4 py-2 rounded-full cursor-pointer transition-colors"
+                  onClick={() => setExpanded(isOpen ? null : m.id)}
+                  className="w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-foreground-950/[0.04] transition-colors"
                 >
-                  {m.handled ? 'Als neu markieren' : 'Als erledigt markieren'}
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${m.handled ? 'bg-transparent' : 'bg-primary-500'}`} aria-hidden="true" />
+                  <span className={`min-w-0 flex-1 truncate text-[14px] ${m.handled ? 'text-foreground-600' : 'font-semibold text-foreground-950'}`}>{m.name}</span>
+                  <span className={`min-w-0 flex-[2] truncate text-[13px] ${m.handled ? 'text-foreground-500' : 'text-foreground-800'}`}>{preview}</span>
+                  <span className="shrink-0 text-xs text-foreground-500 tabular-nums">{fmt(m.created_at)}</span>
                 </button>
-                <ConfirmButton label="Löschen" confirmLabel="Wirklich löschen?" cls="text-[13px] font-semibold border border-secondary-700/60 text-secondary-200 hover:bg-secondary-950/60 px-4 py-2 rounded-full" onConfirm={() => remove(m.id)} />
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-1 border-t border-foreground-950/5">
+                    <p className="mt-2 text-xs text-foreground-600">
+                      <a href={`mailto:${m.email}`} className="hover:text-primary-500">{m.email}</a>
+                      {m.phone && <> · <a href={`tel:${m.phone}`} className="hover:text-primary-500">{m.phone}</a></>}
+                    </p>
+                    <p className="mt-3 text-sm text-foreground-800 whitespace-pre-line">{m.message}</p>
+                    <div className="mt-4 flex items-center gap-3 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => toggleHandled(m.id)}
+                        className="text-[13px] font-semibold border border-background-300 hover:border-primary-500/60 hover:text-primary-500 px-4 py-2 rounded-full cursor-pointer transition-colors"
+                      >
+                        {m.handled ? 'Als neu markieren' : 'Als erledigt markieren'}
+                      </button>
+                      <ConfirmButton label="Löschen" confirmLabel="Wirklich löschen?" cls="text-[13px] font-semibold border border-secondary-700/60 text-secondary-200 hover:bg-secondary-950/60 px-4 py-2 rounded-full" onConfirm={() => remove(m.id)} />
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
