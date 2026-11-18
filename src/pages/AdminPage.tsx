@@ -1928,9 +1928,9 @@ function LegalModal({ page, onClose, onSaved, busy }: { page: AdminLegal; onClos
           </button>
         </div>
         <label className="block mt-4 text-xs font-medium text-foreground-600">
-          <span className="inline-flex items-center gap-1.5">Text <InfoHint text="Der Text erscheint direkt auf /legal/... . Leerzeile = neuer Absatz. Du kannst nur Text, nur PDF oder beides nutzen — mit beidem steht der Text oben und darunter erscheint der PDF-Button." /></span>
+          <span className="inline-flex items-center gap-1.5">Text <InfoHint text={page.id === 'cookies' ? 'Der Text erscheint direkt auf /legal/cookies. Leerzeile = neuer Absatz.' : 'Der Text erscheint direkt auf /legal/... . Leerzeile = neuer Absatz. Du kannst nur Text, nur PDF oder beides nutzen — mit beidem steht der Text oben und darunter erscheint der PDF-Button.'} /></span>
         </label>
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={ADMIN_FIELD_CLS + ' mt-1.5'} placeholder="Text… (optional, wenn PDF hinterlegt ist)" />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={ADMIN_FIELD_CLS + ' mt-1.5'} placeholder={page.id === 'cookies' ? 'Text…' : 'Text… (optional, wenn PDF hinterlegt ist)'} />
         {page.id !== 'cookies' && (
           <div className="mt-5">
             <p className="text-xs font-medium text-foreground-600 inline-flex items-center gap-1.5">
