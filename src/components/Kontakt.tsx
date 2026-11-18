@@ -78,11 +78,8 @@ export function Kontakt() {
         <div className="hm-section-head">
           <div>
             <p className="ro-eyebrow text-primary-500 mb-2">Wir sind für dich da</p>
-            <h2 id="kontakt-title" className="hm-h2 text-primary-500">
-              <span className="ro-grad-text">Kontakt</span>
-              <span className="font-script inline-block align-baseline mx-1 md:mx-2 -translate-y-[0.12em] ro-grad-lime text-[52px] md:text-[80px] leading-[1.1]">
-                &amp; Anfahrt
-              </span>
+            <h2 id="kontakt-title" className="hm-h2">
+              Kontakt <span className="hm-script">&amp; Anfahrt</span>
             </h2>
             <p className="mt-2 ro-body text-foreground-700 max-w-2xl">
               Fragen zur Buchung, zum Verein oder zur Halle? Schreib uns — oder schau direkt vorbei. Die Karte zeigt dir, wo du uns findest.

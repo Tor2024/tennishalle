@@ -267,11 +267,8 @@ function CourtsPage() {
           <div className="ro-container">
             <Reveal>
               <div id="list-title">
-                <h2 className="ro-h2 text-primary-500">
-                  <span className="ro-grad-text">Wähle</span>
-                  <span className="font-script inline-block align-baseline mx-1 md:mx-2 -translate-y-[0.12em] ro-grad-lime text-[52px] md:text-[80px] leading-[1.1]">
-                    deinen Platz
-                  </span>
+                <h2 className="hm-h2">
+                  Wähle <span className="hm-script">deinen Platz</span>
                 </h2>
               </div>
               <p className="mt-3 ro-body text-foreground-700 max-w-[560px]">
