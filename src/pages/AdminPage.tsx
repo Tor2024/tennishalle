@@ -1931,24 +1931,26 @@ function LegalModal({ page, onClose, onSaved, busy }: { page: AdminLegal; onClos
           <span className="inline-flex items-center gap-1.5">Text <InfoHint text="Der Text erscheint direkt auf /legal/... . Leerzeile = neuer Absatz. Du kannst nur Text, nur PDF oder beides nutzen — mit beidem steht der Text oben und darunter erscheint der PDF-Button." /></span>
         </label>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={ADMIN_FIELD_CLS + ' mt-1.5'} placeholder="Text… (optional, wenn PDF hinterlegt ist)" />
-        <div className="mt-5">
-          <p className="text-xs font-medium text-foreground-600 inline-flex items-center gap-1.5">
-            PDF <InfoHint text="PDF wird auf den Server geladen und auf der Seite als «PDF öffnen»-Button angezeigt (öffnet in neuem Tab). PNG, JPG, WEBP, SVG, GIF: bis 150 KB Original, größere werden auf 520 px (WebP) skaliert. PDF: max. 8 MB, wird 1:1 übernommen." />
-          </p>
-          {pdfPath ? (
-            <div className="mt-2 flex items-center gap-3 rounded-md border border-primary-500/40 bg-primary-500/10 px-4 py-3">
-              <i className="ri-file-pdf-2-line text-primary-500 text-lg" />
-              <span className="text-[13px] text-foreground-800 truncate flex-1">{pdfName}</span>
-              <button onClick={() => setPdfPath('')} className="text-[13px] font-medium text-secondary-300 hover:underline cursor-pointer">Entfernen</button>
-            </div>
-          ) : (
-            <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-background-400 px-4 h-10 text-[13px] font-medium hover:border-primary-500 transition-colors">
-              <i className="ri-upload-2-line" /> {uploading ? 'Wird hochgeladen …' : 'PDF hochladen'}
-              <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
-            </label>
-          )}
-          {error && <p className="mt-2 text-[13px] text-secondary-300">{error}</p>}
-        </div>
+        {page.id !== 'cookies' && (
+          <div className="mt-5">
+            <p className="text-xs font-medium text-foreground-600 inline-flex items-center gap-1.5">
+              PDF <InfoHint text="PDF wird auf den Server geladen und auf der Seite als «PDF öffnen»-Button angezeigt (öffnet in neuem Tab). PNG, JPG, WEBP, SVG, GIF: bis 150 KB Original, größere werden auf 520 px (WebP) skaliert. PDF: max. 8 MB, wird 1:1 übernommen." />
+            </p>
+            {pdfPath ? (
+              <div className="mt-2 flex items-center gap-3 rounded-md border border-primary-500/40 bg-primary-500/10 px-4 py-3">
+                <i className="ri-file-pdf-2-line text-primary-500 text-lg" />
+                <span className="text-[13px] text-foreground-800 truncate flex-1">{pdfName}</span>
+                <button onClick={() => setPdfPath('')} className="text-[13px] font-medium text-secondary-300 hover:underline cursor-pointer">Entfernen</button>
+              </div>
+            ) : (
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-background-400 px-4 h-10 text-[13px] font-medium hover:border-primary-500 transition-colors">
+                <i className="ri-upload-2-line" /> {uploading ? 'Wird hochgeladen …' : 'PDF hochladen'}
+                <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+              </label>
+            )}
+            {error && <p className="mt-2 text-[13px] text-secondary-300">{error}</p>}
+          </div>
+        )}
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={onClose} className="h-10 px-5 rounded-full border border-background-400 text-[13px] font-medium cursor-pointer hover:border-primary-500 transition-colors">
             Abbrechen
