@@ -213,17 +213,42 @@ function StatusChip({ status }: { status: string }) {
   )
 }
 
+/* ---------- paid confirm modal (shared, mf) ---------- */
+
+function PaidConfirmModal({ name, amount, newPaid, busy, onConfirm, onClose }: { name: string; amount: string; newPaid: boolean; busy: boolean; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-background-950/70" onClick={onClose} />
+      <div className="relative w-full max-w-sm ro-card p-6">
+        <p className="ro-eyebrow text-primary-500">Zahlung bestätigen</p>
+        <h3 className="mt-2 ro-card-title">{newPaid ? 'Als bezahlt markieren?' : 'Bezahlt-Status entfernen?'}</h3>
+        <p className="mt-3 text-sm text-foreground-600">
+          {name}{amount ? ` · ${amount}` : ''} → <span className="font-semibold text-foreground-800">{newPaid ? 'Bezahlt' : 'Offen'}</span>
+        </p>
+        <div className="mt-6 flex justify-end gap-2.5">
+          <button onClick={onClose} disabled={busy} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer disabled:opacity-50">Abbrechen</button>
+          <button onClick={onConfirm} disabled={busy} className={`h-10 px-5 rounded-full text-[13px] font-semibold cursor-pointer disabled:opacity-50 ${newPaid ? 'bg-primary-500 text-primary-950 hover:bg-primary-400' : 'border border-red-400/40 text-red-300 hover:border-red-400/60'}`}>
+            {newPaid ? 'Bezahlt markieren' : 'Als offen setzen'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ---------- detail modal (mf) ---------- */
 
 function DetailModal({ r, onClose, onPaidChange }: { r: AdminReservation; onClose: () => void; onPaidChange?: () => void }) {
   const [paid, setPaid] = useState(!!r.paid)
   const [paidBusy, setPaidBusy] = useState(false)
+  const [paidConfirm, setPaidConfirm] = useState(false)
   async function togglePaid() {
     setPaidBusy(true)
     const res = await apiAdmin<{ ok: boolean; message?: string }>('mark_booking_paid', { id: r.id, paid: !paid })
     setPaidBusy(false)
     if (res.ok) {
       setPaid(!paid)
+      setPaidConfirm(false)
       onPaidChange?.()
     }
   }
@@ -243,7 +268,7 @@ function DetailModal({ r, onClose, onPaidChange }: { r: AdminReservation; onClos
         <div className="mt-5 flex flex-col gap-2 text-sm">
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-1.5 text-foreground-600">Zahlung<InfoHint text="Bezahlt wird vor Ort im Verein. Markiere die Buchung nach dem Zahlungseingang — der Status bleibt erhalten." /></span>
-            <button onClick={togglePaid} disabled={paidBusy} className={`h-8 px-3 rounded-full text-[12.5px] font-medium cursor-pointer disabled:opacity-50 flex items-center gap-1.5 border transition-colors ${paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-600' : 'border-foreground-950/15 text-foreground-700 hover:border-primary-500/60'}`}>
+            <button onClick={() => setPaidConfirm(true)} disabled={paidBusy} className={`h-8 px-3 rounded-full text-[12.5px] font-medium cursor-pointer disabled:opacity-50 flex items-center gap-1.5 border transition-colors ${paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-600' : 'border-foreground-950/15 text-foreground-700 hover:border-primary-500/60'}`}>
               <i className={paid ? 'ri-checkbox-circle-line' : 'ri-price-tag-line'} />{paid ? 'Bezahlt' : 'Offen'}
             </button>
           </div>
@@ -267,6 +292,16 @@ function DetailModal({ r, onClose, onPaidChange }: { r: AdminReservation; onClos
             </div>
           )}
         </div>
+        {paidConfirm && (
+          <PaidConfirmModal
+            name={r.customer_name}
+            amount={formatPrice(r.fee_cents / 100)}
+            newPaid={!paid}
+            busy={paidBusy}
+            onConfirm={togglePaid}
+            onClose={() => setPaidConfirm(false)}
+          />
+        )}
       </div>
     </div>
   )
@@ -1654,6 +1689,8 @@ function TournamentModal({ tournament, onClose, onSaved }: { tournament: AdminTo
 function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament: AdminTournament; onClose: () => void; onChanged: () => void }) {
   const [entries, setEntries] = useState<AdminTournamentEntry[] | null>(null)
   const [error, setError] = useState('')
+  const [paidConfirm, setPaidConfirm] = useState<AdminTournamentEntry | null>(null)
+  const [paidBusy, setPaidBusy] = useState(false)
 
   const load = () => {
     apiAdmin<{ ok: boolean; entries?: AdminTournamentEntry[]; message?: string }>('tournament_entries', { tournament_id: tournament.id })
@@ -1664,6 +1701,15 @@ function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament
       .catch(() => setError('Netzwerkfehler.'))
   }
   useEffect(load, [])
+
+  async function confirmPaid() {
+    if (!paidConfirm) return
+    setPaidBusy(true)
+    const r = await apiAdmin<{ ok: boolean; message?: string }>('mark_entry_paid', { id: paidConfirm.id, paid: !paidConfirm.paid })
+    setPaidBusy(false)
+    if (r.ok) { setPaidConfirm(null); load(); onChanged() }
+    else setError(r.message ?? 'Fehler')
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background-950/60" onClick={onClose}>
@@ -1699,11 +1745,7 @@ function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     {tournament.fee_cents > 0 && (
                       <button
-                        onClick={async () => {
-                          const r = await apiAdmin<{ ok: boolean; message?: string }>('mark_entry_paid', { id: e.id, paid: !e.paid })
-                          if (r.ok) { load(); onChanged() }
-                          else setError(r.message ?? 'Fehler')
-                        }}
+                        onClick={() => setPaidConfirm(e)}
                         className={`h-8 px-3 rounded-full border text-[12px] cursor-pointer ${e.paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-500 font-semibold' : 'border-foreground-950/20 text-foreground-600 hover:border-primary-500/60'}`}
                       >
                         <i className={e.paid ? 'ri-checkbox-circle-line' : 'ri-price-tag-line'} />{e.paid ? 'Bezahlt' : 'Offen'}
@@ -1728,6 +1770,16 @@ function TournamentEntriesModal({ tournament, onClose, onChanged }: { tournament
         <div className="mt-6 flex justify-end">
           <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-medium cursor-pointer">Schließen</button>
         </div>
+        {paidConfirm && (
+          <PaidConfirmModal
+            name={paidConfirm.full_name}
+            amount={tournament.fee_cents > 0 ? `${(tournament.fee_cents / 100).toFixed(2).replace('.', ',')} €` : ''}
+            newPaid={!paidConfirm.paid}
+            busy={paidBusy}
+            onConfirm={confirmPaid}
+            onClose={() => setPaidConfirm(null)}
+          />
+        )}
       </div>
     </div>
   )
@@ -2339,6 +2391,8 @@ function CalendarTab({ catalog }: { catalog: Catalog }) {
 function CalendarTournamentModal({ t, onClose, onChanged }: { t: AdminCalTournament; onClose: () => void; onChanged: () => void }) {
   const [entries, setEntries] = useState<AdminTournamentEntry[]>(t.entries)
   const [error, setError] = useState('')
+  const [paidConfirm, setPaidConfirm] = useState<AdminTournamentEntry | null>(null)
+  const [paidBusy, setPaidBusy] = useState(false)
 
   const reload = () => {
     apiAdmin<{ ok: boolean; entries?: AdminTournamentEntry[]; message?: string }>('tournament_entries', { tournament_id: t.id })
@@ -2346,6 +2400,15 @@ function CalendarTournamentModal({ t, onClose, onChanged }: { t: AdminCalTournam
       .catch(() => setError('Netzwerkfehler.'))
   }
   useEffect(reload, [])
+
+  async function confirmPaid() {
+    if (!paidConfirm) return
+    setPaidBusy(true)
+    const r = await apiAdmin<{ ok: boolean; message?: string }>('mark_entry_paid', { id: paidConfirm.id, paid: !paidConfirm.paid })
+    setPaidBusy(false)
+    if (r.ok) { setPaidConfirm(null); reload(); onChanged() }
+    else setError(r.message ?? 'Fehler')
+  }
 
   const paidCount = entries.filter((e) => e.paid).length
 
@@ -2375,11 +2438,7 @@ function CalendarTournamentModal({ t, onClose, onChanged }: { t: AdminCalTournam
                   <div className="shrink-0">
                     {t.fee_cents > 0 ? (
                       <button
-                        onClick={async () => {
-                          const r = await apiAdmin<{ ok: boolean; message?: string }>('mark_entry_paid', { id: e.id, paid: !e.paid })
-                          if (r.ok) { reload(); onChanged() }
-                          else setError(r.message ?? 'Fehler')
-                        }}
+                        onClick={() => setPaidConfirm(e)}
                         className={`h-8 px-3 rounded-full border text-[12px] cursor-pointer ${e.paid ? 'border-primary-500/60 bg-primary-500/15 text-primary-500 font-semibold' : 'border-foreground-950/20 text-foreground-600 hover:border-primary-500/60'}`}
                       >
                         <i className={e.paid ? 'ri-checkbox-circle-line' : 'ri-price-tag-line'} />{e.paid ? 'Bezahlt' : 'Offen'}
@@ -2396,6 +2455,16 @@ function CalendarTournamentModal({ t, onClose, onChanged }: { t: AdminCalTournam
         <div className="mt-6 flex justify-end">
           <button onClick={onClose} className="h-10 px-5 rounded-full border border-foreground-950/20 text-[13px] font-semibold cursor-pointer hover:border-primary-500/60">Schließen</button>
         </div>
+        {paidConfirm && (
+          <PaidConfirmModal
+            name={paidConfirm.full_name}
+            amount={t.fee_cents > 0 ? `${(t.fee_cents / 100).toFixed(2).replace('.', ',')} €` : ''}
+            newPaid={!paidConfirm.paid}
+            busy={paidBusy}
+            onConfirm={confirmPaid}
+            onClose={() => setPaidConfirm(null)}
+          />
+        )}
       </div>
     </div>
   )
