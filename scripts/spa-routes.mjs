@@ -32,6 +32,18 @@ const routes = {
     path: '/admin',
     index: false,
   },
+  kontakt: {
+    title: 'Kontakt | TENNISHALLE',
+    description: 'Kontakt zur Tennisanlage.',
+    path: '/kontakt',
+    index: false,
+  },
+  konto: {
+    title: 'Mein Konto | TENNISHALLE',
+    description: 'Deine Buchungen im Überblick.',
+    path: '/konto',
+    index: false,
+  },
 }
 
 // legal pages: /legal/<id> — agb, impressum, datenschutz, cookies
@@ -105,4 +117,4 @@ for (const [route, cfg] of Object.entries(routes)) {
   mkdirSync(`dist/${route}`, { recursive: true })
   writeFileSync(`dist/${route}/index.html`, out)
 }
-console.log('spa-routes: wrote book/sign-in/account/admin + legal (agb/impressum/datenschutz/cookies) with per-route meta')
+console.log('spa-routes: wrote book/sign-in/account/admin/kontakt/konto + legal (agb/impressum/datenschutz/cookies) with per-route meta')
