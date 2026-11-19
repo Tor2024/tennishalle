@@ -118,9 +118,32 @@ export function Footer() {
         </p>
         <Link to="/admin" aria-label="Admin" className="absolute inset-x-0 -top-4 bottom-0 opacity-0" />
       </div>
-      <div className="px-4 md:px-10 py-5 border-t border-background-300/50 flex flex-col sm:flex-row justify-between gap-2 text-xs text-foreground-600">
+      <div className="px-4 md:px-10 py-5 border-t border-background-300/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs text-foreground-600">
         <span>© 2026 TENNISHALLE</span>
-        <span>Tennis Hallen</span>
+        <a
+          href="https://ok-studio-umber.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="OK Studio – Design und Entwicklung (neues Fenster)"
+          className="group inline-flex items-center gap-2 rounded-full border border-background-300/60 px-3 py-1.5 transition-colors hover:border-primary-500/60 hover:text-primary-500"
+        >
+          <span>Design &amp; Entwicklung</span>
+          <span className="font-medium text-foreground-700 transition-colors group-hover:text-primary-500">
+            OK Studio
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            className="h-3 w-3 shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 12 12 4M5.5 4H12v6.5" />
+          </svg>
+        </a>
       </div>
     </footer>
   )
