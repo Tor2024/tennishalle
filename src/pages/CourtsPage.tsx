@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Nav } from '../components/Nav'
 import { Footer } from '../components/Footer'
@@ -196,28 +196,38 @@ function CourtsPage() {
 
   // hash navigation from Nav links (#belegung, #aktuelles, #partner, #court-list)
   const location = useLocation()
+  const navInterrupt = useRef({ hash: '', interrupted: false })
   useEffect(() => {
     const hash = location.hash
     if (!hash) return
+    if (navInterrupt.current.hash !== hash) navInterrupt.current = { hash, interrupted: false }
     const id = hash.slice(1)
+    let cancelled = false
+    let userScrolled = false
+    let expectedY: number | null = null
+
+    const onScroll = () => {
+      if (expectedY !== null && Math.abs(window.scrollY - expectedY) > 2) {
+        userScrolled = true
+        navInterrupt.current.interrupted = true
+      }
+    }
     const jump = () => {
+      if (cancelled || userScrolled || navInterrupt.current.interrupted) return
       const el = document.getElementById(id)
-      if (el) el.scrollIntoView({ behavior: 'auto' })
+      if (!el) return
+      el.scrollIntoView({ behavior: 'auto' })
+      expectedY = window.scrollY
     }
+
     jump()
-    // sections load async (images, availability data) — layout shifts push the
-    // target down after the first jump; re-jump until the position settles
-    const iv = setInterval(jump, 250)
-    const stop = setTimeout(() => clearInterval(iv), 3000)
-    const onHash = () => {
-      const el = document.getElementById(location.hash.slice(1))
-      if (el) el.scrollIntoView({ behavior: 'smooth' })
-    }
-    window.addEventListener('hashchange', onHash)
+    // one correction after async content settles — never fight the user's own scrolling
+    const settle = window.setTimeout(jump, 350)
+    window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
-      clearInterval(iv)
-      clearTimeout(stop)
-      window.removeEventListener('hashchange', onHash)
+      cancelled = true
+      window.clearTimeout(settle)
+      window.removeEventListener('scroll', onScroll)
     }
   }, [location.hash, loaded])
 
