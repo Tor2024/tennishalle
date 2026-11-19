@@ -216,7 +216,7 @@ function VenueStep({
     <div className="grid md:grid-cols-2 gap-4">
       {venues.map((v) => {
         const vc = courts.filter((c) => c.venue_id === v.id)
-        const img = vc.find((c) => c.image_url)?.image_url ?? '/assets/img/gen-02.webp'
+        const img = vc.find((c) => c.image_url)?.image_url ?? '/assets/img/gen-02-moody-editorial-close-up-of-a-fluorescen.webp'
         const surfaces = [...new Set(vc.map((c) => c.surface).filter(Boolean))] as string[]
         const sel = selected === v.id
         return (
@@ -1052,7 +1052,7 @@ export default function BookPage() {
   const venueCourts = useMemo(() => courts.filter((c) => c.venue_id === venueId), [courts, venueId])
 
   const sidebarImage =
-    court?.image_url ?? venueCourts.find((c) => c.image_url)?.image_url ?? courts.find((c) => c.image_url)?.image_url ?? '/assets/img/gen-02.webp'
+    court?.image_url ?? venueCourts.find((c) => c.image_url)?.image_url ?? courts.find((c) => c.image_url)?.image_url ?? '/assets/img/gen-02-moody-editorial-close-up-of-a-fluorescen.webp'
   const sidebarNumber = court ? String(court.court_number ?? 1).padStart(2, '0') : null
   const fee = (() => {
     if (!court || selected.times.length === 0) return null
