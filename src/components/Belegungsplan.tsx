@@ -51,6 +51,7 @@ export function Belegungsplan() {
   const [selectedDate, setSelectedDate] = useState(berlinToday)
   const [windowStartDate, setWindowStartDate] = useState(berlinToday)
   const [viewMode, setViewMode] = useState<'cards' | 'matrix'>('cards')
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
   const [envFilter, setEnvFilter] = useState<'all' | 'indoor' | 'outdoor'>('all')
   const [courts, setCourts] = useState<Court[]>([])
   const [overviewMap, setOverviewMap] = useState<Record<string, DayOverview>>({})
@@ -61,6 +62,13 @@ export function Belegungsplan() {
 
   const today = berlinToday()
   const maxDate = addDays(today, MAX_DAYS)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -152,6 +160,7 @@ export function Belegungsplan() {
   }, [selectedDate, courts])
 
   const dayData = details[selectedDate]
+  const effectiveViewMode = isMobile ? 'cards' : viewMode
 
   function selectDate(dk: string) {
     const clamped = dk < today ? today : dk > maxDate ? maxDate : dk
@@ -274,14 +283,14 @@ export function Belegungsplan() {
             <div className="hm-view-switch" role="group" aria-label="Ansicht wählen">
               <button
                 type="button"
-                className={`hm-view-btn ${viewMode === 'cards' ? 'is-active' : ''}`}
+                className={`hm-view-btn ${effectiveViewMode === 'cards' ? 'is-active' : ''}`}
                 onClick={() => setViewMode('cards')}
               >
                 <i className="ri-layout-grid-line" /> Nach Plätzen
               </button>
               <button
                 type="button"
-                className={`hm-view-btn ${viewMode === 'matrix' ? 'is-active' : ''}`}
+                className={`hm-view-btn hm-view-btn-matrix ${effectiveViewMode === 'matrix' ? 'is-active' : ''}`}
                 onClick={() => setViewMode('matrix')}
               >
                 <i className="ri-table-line" /> Zeittabelle
@@ -409,7 +418,7 @@ export function Belegungsplan() {
             </div>
           ) : visibleCourts.length === 0 ? (
             <div className="hm-empty">Keine Plätze für diesen Filter gefunden.</div>
-          ) : viewMode === 'matrix' ? (
+          ) : effectiveViewMode === 'matrix' ? (
             <MatrixView courts={visibleCourts} dayData={dayData} bookHref={bookHref} />
           ) : (
             <CardsView courts={visibleCourts} dayData={dayData} bookHref={bookHref} priceMap={priceMap} />

@@ -85,6 +85,11 @@
   background: var(--hm-lime);
   color: oklch(.2 .02 150);
 }
+/* Zeittabelle ist auf kleinen Bildschirmen nicht bedienbar – nur Nach Plätzen anbieten */
+.hm-view-btn-matrix { display: none; }
+@media (min-width: 768px) {
+  .hm-view-btn-matrix { display: inline-flex; }
+}
 
 /* flow guide */
 .hm-flow-guide {
