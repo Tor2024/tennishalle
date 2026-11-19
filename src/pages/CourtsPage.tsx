@@ -204,30 +204,37 @@ function CourtsPage() {
     const id = hash.slice(1)
     let cancelled = false
     let userScrolled = false
-    let expectedY: number | null = null
 
-    const onScroll = () => {
-      if (expectedY !== null && Math.abs(window.scrollY - expectedY) > 2) {
-        userScrolled = true
-        navInterrupt.current.interrupted = true
-      }
+    // Only explicit user input cancels the automatic corrections. Scroll events
+    // alone are unreliable here: browser scroll anchoring during late image
+    // layout can move the page by thousands of pixels without any user action.
+    const interrupt = () => {
+      userScrolled = true
+      navInterrupt.current.interrupted = true
     }
     const jump = () => {
       if (cancelled || userScrolled || navInterrupt.current.interrupted) return
       const el = document.getElementById(id)
       if (!el) return
       el.scrollIntoView({ behavior: 'auto' })
-      expectedY = window.scrollY
     }
 
     jump()
-    // one correction after async content settles — never fight the user's own scrolling
+    // corrections after async content settles — never fight the user's own scrolling
     const settle = window.setTimeout(jump, 350)
-    window.addEventListener('scroll', onScroll, { passive: true })
+    const settleLate = window.setTimeout(jump, 1200)
+    window.addEventListener('wheel', interrupt, { passive: true })
+    window.addEventListener('touchstart', interrupt, { passive: true })
+    window.addEventListener('keydown', interrupt)
+    window.addEventListener('pointerdown', interrupt, { passive: true })
     return () => {
       cancelled = true
       window.clearTimeout(settle)
-      window.removeEventListener('scroll', onScroll)
+      window.clearTimeout(settleLate)
+      window.removeEventListener('wheel', interrupt)
+      window.removeEventListener('touchstart', interrupt)
+      window.removeEventListener('keydown', interrupt)
+      window.removeEventListener('pointerdown', interrupt)
     }
   }, [location.hash, loaded])
 

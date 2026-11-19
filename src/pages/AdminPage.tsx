@@ -1484,7 +1484,7 @@ function PostModal({ post, onClose, onSaved }: { post: AdminPost | null; onClose
                 <input value={form.cta_label} onChange={(e) => set('cta_label', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="Jetzt buchen" />
               </label>
               <label className="block">
-                <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Button-Link <InfoHint text="Wohin der Button führt. Intern: /book (Buchung), /konto oder #partner. Extern: https://… Leer = /book." /></span>
+                <span className="ro-eyebrow text-foreground-600 flex items-center gap-1.5">Button-Link <InfoHint text="Wohin der Button führt. Intern: /book (Buchung), /account (Kundenkonto), /#kontakt (Kontakt) oder #partner. Extern: https://… Leer = /book." /></span>
                 <input value={form.cta_link} onChange={(e) => set('cta_link', e.target.value)} className={ADMIN_FIELD_CLS} placeholder="/book" />
               </label>
             </div>

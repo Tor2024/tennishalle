@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import CourtsPage from './pages/CourtsPage'
 import BookPage from './pages/BookPage'
 import SignInPage from './pages/SignInPage'
@@ -25,6 +25,8 @@ export default function App() {
         <Route path="/book" element={<BookPage />} />
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/konto" element={<Navigate to="/account" replace />} />
+        <Route path="/kontakt" element={<Navigate to="/#kontakt" replace />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/legal/:page" element={<LegalPageView />} />
       </Routes>

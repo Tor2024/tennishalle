@@ -214,7 +214,13 @@ export function Aktuelles() {
               <div className="hm-promo-strip">
                 {(promo ?? []).slice(0, 3).map((p) => {
                   const ctaLabel = p.cta_label || 'Jetzt buchen'
-                  const ctaTo = p.cta_link || '/book'
+                  const rawCtaTo = p.cta_link || '/book'
+                  // Known legacy aliases must resolve to real routes/sections, otherwise the SPA renders nothing.
+                  const ctaTo = rawCtaTo === '/kontakt'
+                    ? '/#kontakt'
+                    : rawCtaTo === '/konto'
+                      ? '/account'
+                      : rawCtaTo
                   const ctaInner = <>{ctaLabel} <i className="ri-arrow-right-up-line" /></>
                   return (
                     <div key={p.id} className="hm-promo-card">
