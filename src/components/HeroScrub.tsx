@@ -82,8 +82,13 @@ export function HeroScrub({ summary }: { summary: string }) {
   const endOverlay = clamp01((progress - 0.82) / 0.12)
 
   return (
-    <section id="hero" ref={sectionRef as never} style={{ height: `${CONFIG.scrollLengthVh}vh` }} className="relative">
-      <div className="sticky top-0 h-screen overflow-hidden">
+    <section
+      id="hero"
+      ref={sectionRef as never}
+      style={scrubActive ? { height: `${CONFIG.scrollLengthVh}vh` } : undefined}
+      className={scrubActive ? 'relative' : 'relative h-[100svh]'}
+    >
+      <div className={`sticky top-0 overflow-hidden ${scrubActive ? 'h-screen' : 'h-[100svh]'}`}>
         {/* video / poster */}
         {scrubActive ? (
           <video
