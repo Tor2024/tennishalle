@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 
-export function Reveal({ children, className = '', as: Tag = 'div', delay = 0 }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'p' | 'h1' | 'h2'; delay?: number }) {
+export function Reveal({ children, className = '', as: Tag = 'div', delay = 0, threshold = 0.15 }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'p' | 'h1' | 'h2'; delay?: number; threshold?: number }) {
   const ref = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -15,11 +15,11 @@ export function Reveal({ children, className = '', as: Tag = 'div', delay = 0 }:
           }
         }
       },
-      { threshold: 0.15 },
+      { threshold },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [])
+  }, [threshold])
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

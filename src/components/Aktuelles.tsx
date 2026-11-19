@@ -161,7 +161,7 @@ export function Aktuelles() {
   return (
     <section id="aktuelles" className="hm-section scroll-mt-20" aria-labelledby="aktuelles-title">
       <div className="ro-container">
-        <Reveal>
+        <Reveal threshold={0}>
           <div className="hm-section-head">
             <div>
               <p className="ro-eyebrow text-primary-500 mb-2">News, Angebote &amp; Termine</p>
